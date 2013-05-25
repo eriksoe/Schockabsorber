@@ -83,10 +83,9 @@ class KeysSection: #------------------------------
         res = KeysSection()
         while not buf.at_eof():
             [section_id, cast_id, tag] = buf.unpack('>ii4s')
-            #print("mmap entry: %s" % [tag, size, offset, w1,w2, link])
-            res.entries.append({"section_id":section_id,
-                                "cast_id":cast_id,
-                                "tag":tag})
+            res.entries.append(dict(section_id=section_id,
+                                    cast_id=cast_id,
+                                    tag=tag))
         return res
 #--------------------------------------------------
 
@@ -107,31 +106,36 @@ class CastTableSection: #------------------------------
         return res
 #--------------------------------------------------
 
+class CastMember: #------------------------------
+    def __init__(self, section_nr, type):
+        self.media = {}
+        self.type = type
+        self.section_nr = section_nr
+
+    def __repr__(self):
+        return "<CastMember (@%d) type=%d media=%s>" % \
+            (self.section_nr, self.type, self.media.keys())
+
+    def add_media(self,tag,data):
+        self.media[tag] = data
+
+    @staticmethod
+    def parse(blob,snr):
+        buf = SeqBuffer(blob)
+        (typ,) = buf.unpack('>i')
+        res = CastMember(snr,typ)
+        return res
+#--------------------------------------------------
+
+
 def load_file(filename):
     with open(filename) as f:
         xheader = f.read(12)
         [magic,size,tag] = struct.unpack('!4si4s', xheader)
         if not (magic=="RIFX" and tag=="MV93"): raise "bad file type"
         mmap = find_and_read_section(f, "mmap")
-        keys_e = mmap.find_entry_by_tag("KEY*")
-        cast_e = mmap.find_entry_by_tag("CAS*")
-        #print("mmap=%s" % mmap)
-        print "Key sections: %s %s" % (keys_e, cast_e)
-        # print "Key sections data: keys: %s" % (keys_e.read_from(f))
-        keys_section = KeysSection.parse(keys_e.read_from(f))
-        # print "Key sections data: keys: %s" % (keys_section)
-        # print "Key sections data: cast: %s" % (CastTableSection.parse(cast_e.read_from(f)))
-        for e in keys_section.entries:
-            tag = e["tag"]
-            section_id = e["section_id"]
-            section = mmap[section_id]
-            cast_id = e["cast_id"]
-            if cast_id != 0 and cast_id != 1024:
-                cast_section = mmap[cast_id]
-                print "  Key: %s: (%d)%s <-> (%d) %s" % (tag, section_id, section, cast_id, cast_section)
-                cast_data = mmap[cast_id].read_from(f)
-                [cast_type] = SeqBuffer(cast_data).unpack('>i')
-                print "    Cast data (type %d): %s" % (cast_type,cast_data)
+        cast_table = create_cast_table(f,mmap)
+        print "cast_table: %s" % cast_table
         print "OK"
 
 def find_and_read_section(f, tag_to_find):
@@ -144,5 +148,45 @@ def find_and_read_section(f, tag_to_find):
             return MmapSection.parse(blob)
         else:
             f.seek(size, 1)
+
+def create_cast_table(f,mmap):
+    # Read the relevant table sections:
+    keys_e = mmap.find_entry_by_tag("KEY*")
+    cast_e = mmap.find_entry_by_tag("CAS*")
+    cast_list_section = CastTableSection.parse(cast_e.read_from(f))
+    keys_section      = KeysSection.parse(keys_e.read_from(f))
+
+    # Create cast table with basic cast-member info:
+    def section_nr_to_cast_member(nr):
+        if nr==0: return None
+        cast_section = mmap[nr].read_from(f)
+        res = CastMember.parse(cast_section,nr)
+        return res
+    cast_table = map(section_nr_to_cast_member, cast_list_section.entries)
+
+    # Calculate section_nr -> cast-table mapping:
+    aux_map = {}
+    for cm in cast_table:
+        if cm != None:
+            aux_map[cm.section_nr] = cm
+
+    # Add media info:
+    for e in keys_section.entries:
+        cast_id = e["cast_id"]
+        if cast_id != 0 and cast_id != 1024:
+            # Find the cast member to add media to:
+            cast_member = aux_map[cast_id]
+
+            # Read the media:
+            media_section_id = e["section_id"]
+            media_section_e = mmap[media_section_id]
+            media_section = media_section_e.read_from(f)
+
+            # Add it:
+            tag = e["tag"]
+            #print "DB| adding media %s to cast_id %d" % (tag,cast_id)
+            cast_member.add_media(tag, media_section)
+
+    return cast_table
 
 load_file(sys.argv[1])
