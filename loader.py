@@ -16,7 +16,7 @@ class SeqBuffer:  #------------------------------
 
     def unpackString8(self):
         [len] = self.unpack('B')
-        str = self.buf[self.offset:self.offset+len-1]
+        str = self.buf[self.offset:self.offset+len]
         self.offset += len
         return str
 
