@@ -36,15 +36,15 @@ class MmapEntry:  #------------------------------
         return file.read(self.size)
 #--------------------------------------------------
 
-class Mmap: #------------------------------
+class MmapSection: #------------------------------
     def __init__(self):
         self.entries = []
 
     def __repr__(self):
         return repr(self.entries)
 
-    def append(self,item):
-        self.entries.append(item)
+    def __getitem__(self,idx):
+        return self.entries[idx]
 
     def find_entry_by_tag(self, tag):
         for e in self.entries:
@@ -53,21 +53,58 @@ class Mmap: #------------------------------
         return None
 
     @staticmethod
-    def parse(xcontents):
-        buf = SeqBuffer(xcontents)
-        [v1,v2,nElems,nUsed,junkPtr,v3,freePtr] = \
-        buf.unpack('>HHiiiii')
+    def parse(blob):
+        buf = SeqBuffer(blob)
+        [v1,v2,nElems,nUsed,junkPtr,v3,freePtr] = buf.unpack('>HHiiiii')
         print("mmap header: %s" % [v1,v2,nElems,nUsed,junkPtr,v3,freePtr])
 
-        res = Mmap()
+        res = MmapSection()
         while not buf.at_eof():
-            [tag, size, offset, w1,w2, link] = \
-                                               buf.unpack('>4sIIhhi')
+            [tag, size, offset, w1,w2, link] = buf.unpack('>4sIIhhi')
             #print("mmap entry: %s" % [tag, size, offset, w1,w2, link])
-            res.append(MmapEntry(tag, size, offset))
+            res.entries.append(MmapEntry(tag, size, offset))
         return res
+#--------------------------------------------------
 
 
+class KeysSection: #------------------------------
+    def __init__(self):
+        self.entries = []
+
+    def __repr__(self):
+        return repr(self.entries)
+
+    @staticmethod
+    def parse(blob):
+        buf = SeqBuffer(blob)
+        [v1,v2,nElems,v3] = buf.unpack('>HHii')
+        print("KEY* header: %s" % [v1,v2,nElems,v3])
+
+        res = KeysSection()
+        while not buf.at_eof():
+            [section_id, cast_id, tag] = buf.unpack('>ii4s')
+            #print("mmap entry: %s" % [tag, size, offset, w1,w2, link])
+            res.entries.append({"section_id":section_id,
+                                "cast_id":cast_id,
+                                "tag":tag})
+        return res
+#--------------------------------------------------
+
+class CastTableSection: #------------------------------
+    def __init__(self):
+        self.entries = []
+
+    def __repr__(self):
+        return repr(self.entries)
+
+    @staticmethod
+    def parse(blob):
+        buf = SeqBuffer(blob)
+        res = CastTableSection()
+        while not buf.at_eof():
+            (item,) = buf.unpack('>i')
+            res.entries.append(item)
+        return res
 #--------------------------------------------------
 
 def load_file(filename):
@@ -80,8 +117,21 @@ def load_file(filename):
         cast_e = mmap.find_entry_by_tag("CAS*")
         #print("mmap=%s" % mmap)
         print "Key sections: %s %s" % (keys_e, cast_e)
-        print "Key sections data: keys: %s" % (keys_e.read_from(f))
-        print "Key sections data: cast: %s" % (cast_e.read_from(f))
+        # print "Key sections data: keys: %s" % (keys_e.read_from(f))
+        keys_section = KeysSection.parse(keys_e.read_from(f))
+        # print "Key sections data: keys: %s" % (keys_section)
+        # print "Key sections data: cast: %s" % (CastTableSection.parse(cast_e.read_from(f)))
+        for e in keys_section.entries:
+            tag = e["tag"]
+            section_id = e["section_id"]
+            section = mmap[section_id]
+            cast_id = e["cast_id"]
+            if cast_id != 0 and cast_id != 1024:
+                cast_section = mmap[cast_id]
+                print "  Key: %s: (%d)%s <-> (%d) %s" % (tag, section_id, section, cast_id, cast_section)
+                cast_data = mmap[cast_id].read_from(f)
+                [cast_type] = SeqBuffer(cast_data).unpack('>i')
+                print "    Cast data (type %d): %s" % (cast_type,cast_data)
         print "OK"
 
 def find_and_read_section(f, tag_to_find):
@@ -90,8 +140,8 @@ def find_and_read_section(f, tag_to_find):
         [tag,size] = struct.unpack('!4si', xheader)
         print("  tag=%s" % tag)
         if tag==tag_to_find:
-            xcontents = f.read(size)
-            return Mmap.parse(xcontents)
+            blob = f.read(size)
+            return MmapSection.parse(blob)
         else:
             f.seek(size, 1)
 
