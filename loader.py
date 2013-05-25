@@ -14,6 +14,15 @@ class SeqBuffer:  #------------------------------
         self.offset += fmt.size
         return res
 
+    def unpackString8(self):
+        [len] = self.unpack('B')
+        str = self.buf[self.offset:self.offset+len-1]
+        self.offset += len
+        return str
+
+    def bytes_left(self):
+        return len(self.buf) - self.offset
+
     def at_eof(self):
         return self.offset >= len(self.buf)
 #--------------------------------------------------
@@ -107,14 +116,15 @@ class CastTableSection: #------------------------------
 #--------------------------------------------------
 
 class CastMember: #------------------------------
-    def __init__(self, section_nr, type):
+    def __init__(self, section_nr, type, castdata):
         self.media = {}
         self.type = type
         self.section_nr = section_nr
+        self.castdata = castdata
 
     def __repr__(self):
-        return "<CastMember (@%d) type=%d media=%s>" % \
-            (self.section_nr, self.type, self.media.keys())
+        return "<CastMember (@%d) type=%d meta=%s media=%s>" % \
+            (self.section_nr, self.type, self.castdata, self.media)
 
     def add_media(self,tag,data):
         self.media[tag] = data
@@ -122,9 +132,66 @@ class CastMember: #------------------------------
     @staticmethod
     def parse(blob,snr):
         buf = SeqBuffer(blob)
-        (typ,) = buf.unpack('>i')
-        res = CastMember(snr,typ)
+        (type,) = buf.unpack('>i')
+        castdata = CastMember.parse_castdata(type, buf)
+        res = CastMember(snr,type, castdata)
         return res
+
+    @staticmethod
+    def parse_castdata(type, buf):
+        if type==1:
+            return ImageCastType.parse(buf)
+        else:
+            return None
+
+class CastType: #--------------------
+    def __repr__(self):
+        return "<%s%s>" % (self.__class__.__name__, self.repr_extra())
+
+    def repr_extra(self): return ""
+
+class ImageCastType(CastType): #--------------------
+    def __init__(self, name, misc):
+        self.name = name
+
+    def repr_extra(self):
+        return " name=\"%s\"" % (self.name)
+
+    @staticmethod
+    def parse(buf):
+        [v1,v2,v3,v4,v5,v6,v7, nElems] = buf.unpack('>6iHi')
+        for i in range(nElems):
+            (_tmp,) = buf.unpack('>i')
+        [v8] = buf.unpack('>i')
+        name = buf.unpackString8()
+        return ImageCastType(name, (v1,v2,v3,v4,v5,v6,v7,v8))
+
+#--------------------------------------------------
+
+class Media: #------------------------------
+    def __init__(self,snr,tag,data):
+        self.snr = snr
+        self.data = data
+        self.tag = tag
+
+    def __repr__(self):
+        return "<%s (@%d)%s>" % (self.__class__.__name__, self.snr,
+                                 self.repr_extra())
+
+    def repr_extra(self): return ""
+
+    @staticmethod
+    def parse(snr,tag,blob):
+        if tag=="BITD":
+            return BITDMedia(snr,tag,blob)
+        else:
+            return Media(snr,tag,blob)
+
+class BITDMedia(Media): #------------------------------
+    def __init__(self,snr,tag,blob):
+        Media.__init__(self,snr,tag,blob)
+        buf = SeqBuffer(blob)
+        "TODO"
 #--------------------------------------------------
 
 
@@ -178,14 +245,15 @@ def create_cast_table(f,mmap):
             cast_member = aux_map[cast_id]
 
             # Read the media:
+            tag = e["tag"]
             media_section_id = e["section_id"]
             media_section_e = mmap[media_section_id]
             media_section = media_section_e.read_from(f)
+            media = Media.parse(media_section_id, tag, media_section)
 
             # Add it:
-            tag = e["tag"]
             #print "DB| adding media %s to cast_id %d" % (tag,cast_id)
-            cast_member.add_media(tag, media_section)
+            cast_member.add_media(tag, media)
 
     return cast_table
 
