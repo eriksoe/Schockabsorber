@@ -151,11 +151,16 @@ class CastType: #--------------------
     def repr_extra(self): return ""
 
 class ImageCastType(CastType): #--------------------
-    def __init__(self, name, misc):
+    def __init__(self, name, dims, total_dims, anchor, misc):
         self.name = name
+        self.dims = dims
+        self.total_dims = total_dims
+        self.anchor = anchor
+        print "DB| ImageCastType: misc=%s\n  dims=%s anchor=%s" % (misc, dims, anchor)
 
     def repr_extra(self):
-        return " name=\"%s\"" % (self.name)
+        return " name=\"%s\" dims=%s anchor=%s" % (
+            self.name, self.dims, self.anchor)
 
     @staticmethod
     def parse(buf):
@@ -164,7 +169,16 @@ class ImageCastType(CastType): #--------------------
             (_tmp,) = buf.unpack('>i')
         [v8] = buf.unpack('>i')
         name = buf.unpackString8()
-        return ImageCastType(name, (v1,v2,v3,v4,v5,v6,v7,v8))
+        [v9,v10,v11, height,width,v12,v13,v14, anchor_x,anchor_y,
+         v15,v16,v17
+        ] = buf.unpack('>hIi HH ihh HH bbi')
+        total_width = v10 & 0x7FFF
+        v10 = "0x%x" % v10
+        v12 = "0x%x" % v12
+        misc = ((v1,v2,v3,v4,v5,v6,v7,v8),
+                (v9,v10,v11), (v12,v13,v14), (v15,v16,v17))
+        return ImageCastType(name, (width, height), (total_width,height), (anchor_x, anchor_y),
+                             misc)
 
 #--------------------------------------------------
 
@@ -202,8 +216,9 @@ def load_file(filename):
         if not (magic=="RIFX" and tag=="MV93"): raise "bad file type"
         mmap = find_and_read_section(f, "mmap")
         cast_table = create_cast_table(f,mmap)
-        print "cast_table: %s" % cast_table
-        print "OK"
+        print "==== cast_table: ===="
+        for cm in cast_table: print "  %s" % cm
+        return (cast_table,)
 
 def find_and_read_section(f, tag_to_find):
     while True:
@@ -242,6 +257,7 @@ def create_cast_table(f,mmap):
         cast_id = e["cast_id"]
         if cast_id != 0 and cast_id != 1024:
             # Find the cast member to add media to:
+#            print "DB| cast_id=%d" % cast_id
             cast_member = aux_map[cast_id]
 
             # Read the media:
@@ -257,4 +273,5 @@ def create_cast_table(f,mmap):
 
     return cast_table
 
+#def main():
 load_file(sys.argv[1])
