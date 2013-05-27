@@ -22,14 +22,15 @@ def on_draw():
         media = cm.media['BITD']
         (w,h) = castdata.dims
         (tw,th) = castdata.total_dims
+        bpp = castdata.bpp
         #if len(media.data) < 500 or len(media.data) > 2000: continue
-        print "DB| cm=%s media=%s w=%d h=%d tw=%d" % (cm,media, w,h, tw)
-        image = rle.rle_decode(tw,h, media.data)
+        #print "DB| cm=%s media=%s w=%d h=%d tw=%d" % (cm,media, w,h, tw)
+        image = rle.rle_decode(w,h, tw, bpp, media.data)
         if y+h>=H:
             y = 0; x+= maxw + 20; maxw = 0
             if x>=W: break
         image.blit(x,y)
-        if tw>maxw: maxw = tw
+        if w>maxw: maxw = w
         y += h + 20
     # canvas.blit(100,100)
 

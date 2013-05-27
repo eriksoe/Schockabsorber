@@ -151,16 +151,18 @@ class CastType: #--------------------
     def repr_extra(self): return ""
 
 class ImageCastType(CastType): #--------------------
-    def __init__(self, name, dims, total_dims, anchor, misc):
+    def __init__(self, name, dims, total_dims, anchor, bpp, misc):
         self.name = name
         self.dims = dims
         self.total_dims = total_dims
         self.anchor = anchor
+        self.bpp = bpp # Bits per pixel
         print "DB| ImageCastType: misc=%s\n  dims=%s anchor=%s" % (misc, dims, anchor)
+        self.misc = misc
 
     def repr_extra(self):
-        return " name=\"%s\" dims=%s anchor=%s" % (
-            self.name, self.dims, self.anchor)
+        return " name=\"%s\" dims=%s anchor=%s misc=%s" % (
+            self.name, self.dims, self.anchor, self.misc)
 
     @staticmethod
     def parse(buf):
@@ -170,14 +172,18 @@ class ImageCastType(CastType): #--------------------
         [v8] = buf.unpack('>i')
         name = buf.unpackString8()
         [v9,v10,v11, height,width,v12,v13,v14, anchor_x,anchor_y,
-         v15,v16,v17
+         v15,bits_per_pixel,v17
         ] = buf.unpack('>hIi HH ihh HH bbi')
         total_width = v10 & 0x7FFF
         v10 = "0x%x" % v10
         v12 = "0x%x" % v12
         misc = ((v1,v2,v3,v4,v5,v6,v7,v8),
-                (v9,v10,v11), (v12,v13,v14), (v15,v16,v17))
-        return ImageCastType(name, (width, height), (total_width,height), (anchor_x, anchor_y),
+                (v9,v10,v11), (v12,v13,v14), (v15,v17))
+        return ImageCastType(name,
+                             (width, height),
+                             (total_width,height),
+                             (anchor_x, anchor_y),
+                             bits_per_pixel,
                              misc)
 
 #--------------------------------------------------
