@@ -30,6 +30,11 @@ class SeqBuffer:  #------------------------------
         else:
             return ((d-128)<<7) | self.unpackVarint()
 
+    def readBytes(self, len):
+        bytes = self.buf[self.offset:self.offset+len]
+        self.offset += len
+        return bytes
+
     def bytes_left(self):
         return len(self.buf) - self.offset
 
@@ -38,13 +43,15 @@ class SeqBuffer:  #------------------------------
 #--------------------------------------------------
 
 class MmapEntry:  #------------------------------
-    def __init__(self,tag,size,offset):
+    def __init__(self,nr,tag,size,offset, repr_mode):
+        self.nr = nr
         self.tag = tag
         self.size = size
         self.offset = offset
+        self.repr_mode = repr_mode
 
     def __repr__(self):
-        return('MmapEntry(%s @%d+%d)' % (self.tag,self.offset,self.size))
+        return('MmapEntry(%d %s @%d+%d)' % (self.nr, self.tag,self.offset,self.size))
 
     def read_from(self,file):
         file.seek(self.offset)
@@ -58,12 +65,20 @@ class MmapEntry:  #------------------------------
 class MmapSection: #------------------------------
     def __init__(self):
         self.entries = []
+        self.entries_by_nr = {}
 
     def __repr__(self):
         return repr(self.entries)
 
     def __getitem__(self,idx):
         return self.entries[idx]
+
+    def get_by_nr(self,nr):
+        return self.entries_by_nr[nr]
+
+    def add(self, mmap_entry):
+        self.entries.append(mmap_entry)
+        self.entries_by_nr[mmap_entry.nr] = mmap_entry
 
     def find_entry_by_tag(self, tag):
         for e in self.entries:
@@ -86,22 +101,24 @@ class MmapSection: #------------------------------
         res = MmapSection()
         for i in range(section_count):
             id = buf.unpackVarint()
-            w1 = buf.unpackVarint() # offset
-            w2 = buf.unpackVarint() # size
-            w3 = buf.unpackVarint() # size2?
-            w4 = buf.unpackVarint() # flag?
+            offset = buf.unpackVarint() # offset
+            comp_size = buf.unpackVarint() # size in file
+            decomp_size = buf.unpackVarint() # size, decompressed
+            repr_mode = buf.unpackVarint()
             [tag] = buf.unpack('<4s')
             tag = rev(tag)
-            print("mmap entry: %s\t(D=%d)" % ([id, tag,w1,w2,w3,w4], w3-w2))
-            res.entries.append(MmapEntry(tag, -1, -1))
+            print("mmap entry: %s" % ([id, tag,
+                                               offset, comp_size, decomp_size,
+                                               repr_mode]))
+            res.add(MmapEntry(id, tag, comp_size, offset, repr_mode))
 
-            if w1!=0x3fff:
-                usum += w2
-            else:
-                csum += w2+1
-                #w1sum += w1; w2sum += w2; w3sum += w3; w4sum += w4
+            # if w1!=0x3fff:
+            #     usum += w2
+            # else:
+            #     csum += w2+1
+            #     #w1sum += w1; w2sum += w2; w3sum += w3; w4sum += w4
         print "Bytes left in mmap section: %d" % buf.bytes_left()
-        print "Sums: %s" % [csum, usum]
+        # print "Sums: %s" % [csum, usum]
         return res
 #--------------------------------------------------
 
@@ -122,7 +139,7 @@ def load_file(filename):
             ssize = read_varint(f)
             print "stag=%s ssize=%d" % (stag, ssize)
             if ssize==0:
-                sect_data = f.read()
+                break
             else:
                 sect_data = f.read(ssize)
             if stag == "Fcdr" or stag == "FGEI":
@@ -131,13 +148,51 @@ def load_file(filename):
             elif stag == "ABMP":
                 sect_data = zlib.decompress(sect_data[3:])
                 print "ssize decompressed=%d" % (len(sect_data))
-                print "DB| mmap: %s" % MmapSection.parse(sect_data)
+                mmap = MmapSection.parse(sect_data)
+                print "DB| mmap: %s" % mmap
             print "DB| %s -> %s" % (stag, sect_data)
+        sections_data_base = f.tell()
+
+        # Fetch the sections:
+        sections = {}
+        #comp_source = None
+        for snr in mmap.entries_by_nr:
+            e = mmap.get_by_nr(snr)
+            print "DB| section nr %s: %s" % (snr,e)
+            if e.offset == 0x3fff:
+                # Compressed.
+                #sdata = comp_source[e.offset:e.offset+e.size]
+                "dummy"
+            else:
+                f.seek(sections_data_base + e.offset)
+                raw_sdata = f.read(e.size)
+                if e.repr_mode==0:
+                    sdata = zlib.decompress(raw_sdata)
+                elif e.repr_mode==1:
+                    sdata = raw_sdata
+                else:
+                    raise "unknown repr_mode: %d" % e.repr_mode
+                sections[snr] = (e.tag,sdata)
+                if e.tag=="ILS ":
+                    #comp_source = sdata
+                    read_ILS_section_into(sdata, mmap, sections)
+        print "Sections=%s" % (sections.keys())
+        print "Sections:"
+        for snr in sections:
+            print "  %d: %s" % (snr, sections[snr])
         # mmap = find_and_read_section(f, "mmap")
         # cast_table = create_cast_table(f,mmap)
         # print "==== cast_table: ===="
         # for cm in cast_table: print "  %s" % cm
         # return (cast_table,)
+
+def read_ILS_section_into(ils_data, mmap, dest):
+    buf = SeqBuffer(ils_data)
+    while not buf.at_eof():
+        snr = buf.unpackVarint()
+        smeta = mmap.get_by_nr(snr)
+        sdata = buf.readBytes(smeta.size)
+        dest[snr] = (smeta.tag, sdata)
 
 def rev(s):
     return s[::-1]
