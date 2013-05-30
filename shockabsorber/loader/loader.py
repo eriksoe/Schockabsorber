@@ -1,60 +1,12 @@
-#!/usr/bin/python
 
-import sys
+#### Purpose:
+# Parse D*R files.
+# Individual envelope formats are handled elsewhere (dxr_loader etc.).
+
 import struct
 from shockabsorber.model.sections import Section, SectionMap
-
-class SeqBuffer:  #------------------------------
-    def __init__(self,src):
-        self.buf = buffer(src)
-        self.offset = 0
-
-    def unpack(self,fmt):
-        if isinstance(fmt,str): fmt=struct.Struct(fmt) # sic
-        res = fmt.unpack_from(self.buf, self.offset)
-        self.offset += fmt.size
-        return res
-
-    def unpackString8(self):
-        [len] = self.unpack('B')
-        str = self.buf[self.offset:self.offset+len]
-        self.offset += len
-        return str
-
-    def bytes_left(self):
-        return len(self.buf) - self.offset
-
-    def at_eof(self):
-        return self.offset >= len(self.buf)
-#--------------------------------------------------
-
-class SectionImpl(Section):  #------------------------------
-    def __init__(self,tag,size,offset, file):
-        Section.__init__(self,tag,size,offset)
-        self.file = file
-
-    def read_bytes(self):
-        file = self.file
-        file.seek(self.offset)
-        xheader = file.read(8)
-        [tag,size] = struct.unpack('!4si', xheader)
-        if tag != self.tag:
-            raise ("section header is actually %s, not %s as expected" % (tag, self.tag))
-        return file.read(self.size)
-#--------------------------------------------------
-
-def parse_mmap_section(blob, file):
-    buf = SeqBuffer(blob)
-    [v1,v2,nElems,nUsed,junkPtr,v3,freePtr] = buf.unpack('>HHiiiii')
-    print("mmap header: %s" % [v1,v2,nElems,nUsed,junkPtr,v3,freePtr])
-
-    sections = []
-    while not buf.at_eof():
-        [tag, size, offset, w1,w2, link] = buf.unpack('>4sIIhhi')
-        #print("mmap entry: %s" % [tag, size, offset, w1,w2, link])
-        sections.append(SectionImpl(tag, size, offset, file))
-    return SectionMap(sections)
-#--------------------------------------------------
+from shockabsorber.loader.util import SeqBuffer
+import shockabsorber.loader.dxr_loader
 
 class KeysSection: #------------------------------
     def __init__(self):
@@ -199,25 +151,16 @@ def load_file(filename):
     with open(filename) as f:
         xheader = f.read(12)
         [magic,size,tag] = struct.unpack('!4si4s', xheader)
-        if not (magic=="RIFX" and tag=="MV93"): raise "bad file type"
-        mmap = find_and_read_section(f, "mmap")
-        cast_table = create_cast_table(f,mmap)
-        print "==== cast_table: ===="
-        for cm in cast_table: print "  %s" % cm
-        return (cast_table,)
-
-def find_and_read_section(f, tag_to_find):
-    while True:
-        xheader = f.read(8)
-        [tag,size] = struct.unpack('!4si', xheader)
-        print("  tag=%s" % tag)
-        if tag==tag_to_find:
-            blob = f.read(size)
-            return parse_mmap_section(blob, f)
+        if (magic=="RIFX" and tag=="MV93"):
+            sections_map = shockabsorber.loader.dxr_loader.create_section_map(f)
+            cast_table = create_cast_table(sections_map)
+            #print "==== cast_table: ===="
+            #for cm in cast_table: print "  %s" % cm
+            return (cast_table,)
         else:
-            f.seek(size, 1)
+            raise Exception("Bad file type")
 
-def create_cast_table(f,mmap):
+def create_cast_table(mmap):
     # Read the relevant table sections:
     keys_e = mmap.entry_by_tag("KEY*")
     cast_e = mmap.entry_by_tag("CAS*")
@@ -258,6 +201,3 @@ def create_cast_table(f,mmap):
             cast_member.add_media(tag, media)
 
     return cast_table
-
-#def main():
-load_file(sys.argv[1])
