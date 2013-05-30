@@ -2,6 +2,7 @@
 
 import sys
 import struct
+from shockabsorber.model.sections import Section, SectionMap
 
 class SeqBuffer:  #------------------------------
     def __init__(self,src):
@@ -27,16 +28,13 @@ class SeqBuffer:  #------------------------------
         return self.offset >= len(self.buf)
 #--------------------------------------------------
 
-class MmapEntry:  #------------------------------
-    def __init__(self,tag,size,offset):
-        self.tag = tag
-        self.size = size
-        self.offset = offset
+class SectionImpl(Section):  #------------------------------
+    def __init__(self,tag,size,offset, file):
+        Section.__init__(self,tag,size,offset)
+        self.file = file
 
-    def __repr__(self):
-        return('MmapEntry(%s @%d+%d)' % (self.tag,self.offset,self.size))
-
-    def read_from(self,file):
+    def read_bytes(self):
+        file = self.file
         file.seek(self.offset)
         xheader = file.read(8)
         [tag,size] = struct.unpack('!4si', xheader)
@@ -45,36 +43,18 @@ class MmapEntry:  #------------------------------
         return file.read(self.size)
 #--------------------------------------------------
 
-class MmapSection: #------------------------------
-    def __init__(self):
-        self.entries = []
+def parse_mmap_section(blob, file):
+    buf = SeqBuffer(blob)
+    [v1,v2,nElems,nUsed,junkPtr,v3,freePtr] = buf.unpack('>HHiiiii')
+    print("mmap header: %s" % [v1,v2,nElems,nUsed,junkPtr,v3,freePtr])
 
-    def __repr__(self):
-        return repr(self.entries)
-
-    def __getitem__(self,idx):
-        return self.entries[idx]
-
-    def find_entry_by_tag(self, tag):
-        for e in self.entries:
-            if e.tag == tag:
-                return e
-        return None
-
-    @staticmethod
-    def parse(blob):
-        buf = SeqBuffer(blob)
-        [v1,v2,nElems,nUsed,junkPtr,v3,freePtr] = buf.unpack('>HHiiiii')
-        print("mmap header: %s" % [v1,v2,nElems,nUsed,junkPtr,v3,freePtr])
-
-        res = MmapSection()
-        while not buf.at_eof():
-            [tag, size, offset, w1,w2, link] = buf.unpack('>4sIIhhi')
-            #print("mmap entry: %s" % [tag, size, offset, w1,w2, link])
-            res.entries.append(MmapEntry(tag, size, offset))
-        return res
+    sections = []
+    while not buf.at_eof():
+        [tag, size, offset, w1,w2, link] = buf.unpack('>4sIIhhi')
+        #print("mmap entry: %s" % [tag, size, offset, w1,w2, link])
+        sections.append(SectionImpl(tag, size, offset, file))
+    return SectionMap(sections)
 #--------------------------------------------------
-
 
 class KeysSection: #------------------------------
     def __init__(self):
@@ -233,21 +213,21 @@ def find_and_read_section(f, tag_to_find):
         print("  tag=%s" % tag)
         if tag==tag_to_find:
             blob = f.read(size)
-            return MmapSection.parse(blob)
+            return parse_mmap_section(blob, f)
         else:
             f.seek(size, 1)
 
 def create_cast_table(f,mmap):
     # Read the relevant table sections:
-    keys_e = mmap.find_entry_by_tag("KEY*")
-    cast_e = mmap.find_entry_by_tag("CAS*")
-    cast_list_section = CastTableSection.parse(cast_e.read_from(f))
-    keys_section      = KeysSection.parse(keys_e.read_from(f))
+    keys_e = mmap.entry_by_tag("KEY*")
+    cast_e = mmap.entry_by_tag("CAS*")
+    cast_list_section = CastTableSection.parse(cast_e.bytes())
+    keys_section      = KeysSection.parse(keys_e.bytes())
 
     # Create cast table with basic cast-member info:
     def section_nr_to_cast_member(nr):
         if nr==0: return None
-        cast_section = mmap[nr].read_from(f)
+        cast_section = mmap[nr].bytes()
         res = CastMember.parse(cast_section,nr)
         return res
     cast_table = map(section_nr_to_cast_member, cast_list_section.entries)
@@ -270,7 +250,7 @@ def create_cast_table(f,mmap):
             tag = e["tag"]
             media_section_id = e["section_id"]
             media_section_e = mmap[media_section_id]
-            media_section = media_section_e.read_from(f)
+            media_section = media_section_e.bytes()
             media = Media.parse(media_section_id, tag, media_section)
 
             # Add it:
