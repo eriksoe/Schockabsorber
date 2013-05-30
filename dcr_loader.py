@@ -122,6 +122,20 @@ class MmapSection: #------------------------------
         return res
 #--------------------------------------------------
 
+class LnamSection: #------------------------------
+    @staticmethod
+    def parse(blob):
+        buf = SeqBuffer(blob)
+        [v1,v2,len1,len2,v3,numElems] = buf.unpack(">iiiiHH")
+        names = []
+        for i in range(numElems):
+            names.append(buf.unpackString8())
+        name_map = {} # For better printing
+        for i in range(numElems):
+            name_map[i] = names[i]
+        return ([v1,v2,len1,len2,v3,numElems], name_map)
+#--------------------------------------------------
+
 def load_file(filename):
     with open(filename) as f:
         xheader = f.read(12)
@@ -185,6 +199,14 @@ def load_file(filename):
         # print "==== cast_table: ===="
         # for cm in cast_table: print "  %s" % cm
         # return (cast_table,)
+
+        # Debug:
+        for snr in sections:
+            (tag,data) = sections[snr]
+            if tag=="Lscr" or tag=="LctX":# or tag=="Lnam":
+                print "DB| %d: %s->%s" % (snr, tag, data)
+            if tag=="Lnam":
+                print "DB| %d: %s->%s" % (snr, tag, LnamSection.parse(data))
 
 def read_ILS_section_into(ils_data, mmap, dest):
     buf = SeqBuffer(ils_data)
