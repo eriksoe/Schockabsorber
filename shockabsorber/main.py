@@ -5,11 +5,9 @@ import shockabsorber.loader.rle
 
 # For now, this is just a test program showing the bitmap images in a file.
 def main():
-    W = 2600; H = 1200
-    window = pyglet.window.Window(width=W, height=H)
-
     (cast_table,) = shockabsorber.loader.loader.load_file(sys.argv[1])
 
+    return
     images = []
     for cm in cast_table:
         if cm==None: continue
@@ -22,6 +20,9 @@ def main():
         bpp = castdata.bpp
         image = shockabsorber.loader.rle.rle_decode(w,h, tw, bpp, media.data)
         images.append(image)
+
+    W = 2600; H = 1200
+    window = pyglet.window.Window(width=W, height=H)
 
     @window.event
     def on_draw():

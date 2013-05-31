@@ -22,14 +22,13 @@ class SectionMap: #------------------------------
 #--------------------------------------------------
 
 class Section:  #------------------------------
-    def __init__(self,tag,size,offset):
+    def __init__(self,tag,size):
         self.tag = tag
         self.size = size
-        self.offset = offset
         self.the_bytes = None
 
     def __repr__(self):
-        return('MmapEntry(%s @%d+%d)' % (self.tag,self.offset,self.size))
+        return('%s(%s @?+%d)' % (self.__class__.__name__, self.tag,self.size))
 
     def bytes(self):
         if self.the_bytes==None:

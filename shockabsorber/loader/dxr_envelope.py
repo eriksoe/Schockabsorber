@@ -36,7 +36,8 @@ def parse_mmap_section(blob, file):
 
 class SectionImpl(Section):  #------------------------------
     def __init__(self,tag,size,offset, file):
-        Section.__init__(self,tag,size,offset)
+        Section.__init__(self,tag,size)
+        self.offset = offset
         self.file = file
 
     def read_bytes(self):

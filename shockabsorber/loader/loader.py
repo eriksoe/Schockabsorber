@@ -1,12 +1,13 @@
 
 #### Purpose:
 # Parse D*R files.
-# Individual envelope formats are handled elsewhere (dxr_loader etc.).
+# Individual envelope formats are handled elsewhere (dxr_envelope etc.).
 
 import struct
 from shockabsorber.model.sections import Section, SectionMap
 from shockabsorber.loader.util import SeqBuffer
 import shockabsorber.loader.dxr_loader
+import shockabsorber.loader.dcr_envelope
 
 class KeysSection: #------------------------------
     def __init__(self):
@@ -16,14 +17,15 @@ class KeysSection: #------------------------------
         return repr(self.entries)
 
     @staticmethod
-    def parse(blob):
-        buf = SeqBuffer(blob)
+    def parse(blob, is_little_endian):
+        buf = SeqBuffer(blob, is_little_endian)
         [v1,v2,nElems,v3] = buf.unpack('>HHii')
         print("KEY* header: %s" % [v1,v2,nElems,v3])
 
         res = KeysSection()
         while not buf.at_eof():
-            [section_id, cast_id, tag] = buf.unpack('>ii4s')
+            [section_id, cast_id] = buf.unpack('>ii', '<ii')
+            tag = buf.readTag()
             res.entries.append(dict(section_id=section_id,
                                     cast_id=cast_id,
                                     tag=tag))
@@ -62,8 +64,8 @@ class CastMember: #------------------------------
         self.media[tag] = data
 
     @staticmethod
-    def parse(blob,snr):
-        buf = SeqBuffer(blob)
+    def parse(blob,snr, is_little_endian):
+        buf = SeqBuffer(blob, is_little_endian)
         (type,) = buf.unpack('>i')
         castdata = CastMember.parse_castdata(type, buf)
         res = CastMember(snr,type, castdata)
@@ -89,7 +91,7 @@ class ImageCastType(CastType): #--------------------
         self.total_dims = total_dims
         self.anchor = anchor
         self.bpp = bpp # Bits per pixel
-        print "DB| ImageCastType: misc=%s\n  dims=%s anchor=%s" % (misc, dims, anchor)
+        print "DB| ImageCastType: misc=%s\n  dims=%s total_dims=%s anchor=%s" % (misc, dims, total_dims, anchor)
         self.misc = misc
 
     def repr_extra(self):
@@ -105,10 +107,11 @@ class ImageCastType(CastType): #--------------------
         name = buf.unpackString8()
         [v9,v10,v11, height,width,v12,v13,v14, anchor_x,anchor_y,
          v15,bits_per_pixel,v17
-        ] = buf.unpack('>hIi HH ihh HH bbi')
+        ] = buf.unpack('>hIi HH ihh HH bbi', '<hIi HH ihh HH bbi')
         total_width = v10 & 0x7FFF
         v10 = "0x%x" % v10
         v12 = "0x%x" % v12
+        print "DB| ImageCastType.parse: ILE=%s %s" % (buf.is_little_endian, [(width, height), (total_width,height)])
         misc = ((v1,v2,v3,v4,v5,v6,v7,v8),
                 (v9,v10,v11), (v12,v13,v14), (v15,v17))
         return ImageCastType(name,
@@ -151,27 +154,30 @@ def load_file(filename):
     with open(filename) as f:
         xheader = f.read(12)
         [magic,size,tag] = struct.unpack('!4si4s', xheader)
+        is_little_endian = (magic == "XFIR")
         if (magic=="RIFX" and tag=="MV93"):
-            sections_map = shockabsorber.loader.dxr_loader.create_section_map(f)
-            cast_table = create_cast_table(sections_map)
-            #print "==== cast_table: ===="
-            #for cm in cast_table: print "  %s" % cm
-            return (cast_table,)
+            sections_map = shockabsorber.loader.dxr_envelope.create_section_map(f)
+        elif (magic=="XFIR" and tag=="MDGF"):
+            sections_map = shockabsorber.loader.dcr_envelope.create_section_map(f)
         else:
             raise Exception("Bad file type")
+        cast_table = create_cast_table(sections_map, is_little_endian)
+        #print "==== cast_table: ===="
+        #for cm in cast_table: print "  %s" % cm
+        return (cast_table,)
 
-def create_cast_table(mmap):
+def create_cast_table(mmap, is_little_endian):
     # Read the relevant table sections:
     keys_e = mmap.entry_by_tag("KEY*")
     cast_e = mmap.entry_by_tag("CAS*")
     cast_list_section = CastTableSection.parse(cast_e.bytes())
-    keys_section      = KeysSection.parse(keys_e.bytes())
+    keys_section      = KeysSection.parse(keys_e.bytes(), is_little_endian)
 
     # Create cast table with basic cast-member info:
     def section_nr_to_cast_member(nr):
         if nr==0: return None
         cast_section = mmap[nr].bytes()
-        res = CastMember.parse(cast_section,nr)
+        res = CastMember.parse(cast_section,nr, is_little_endian)
         return res
     cast_table = map(section_nr_to_cast_member, cast_list_section.entries)
 
@@ -184,13 +190,13 @@ def create_cast_table(mmap):
     # Add media info:
     for e in keys_section.entries:
         cast_id = e["cast_id"]
-        if cast_id != 0 and cast_id != 1024:
+        tag = e["tag"]
+        if cast_id != 0 and (cast_id & 1024)==0 \
+           and tag != "Thum" and tag != "ediM":
             # Find the cast member to add media to:
-#            print "DB| cast_id=%d" % cast_id
             cast_member = aux_map[cast_id]
 
             # Read the media:
-            tag = e["tag"]
             media_section_id = e["section_id"]
             media_section_e = mmap[media_section_id]
             media_section = media_section_e.bytes()
