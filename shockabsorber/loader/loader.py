@@ -5,9 +5,16 @@
 
 import struct
 from shockabsorber.model.sections import Section, SectionMap
-from shockabsorber.loader.util import SeqBuffer
+from shockabsorber.loader.util import SeqBuffer, rev
 import shockabsorber.loader.dxr_envelope
 import shockabsorber.loader.dcr_envelope
+
+class LoaderContext: #------------------------------
+    """Contains information about endianness and file format version of a file."""
+    def __init__(self, file_tag, is_little_endian):
+        self.file_tag = file_tag
+        self.is_little_endian = is_little_endian
+#--------------------------------------------------
 
 class KeysSection: #------------------------------
     def __init__(self):
@@ -17,8 +24,8 @@ class KeysSection: #------------------------------
         return repr(self.entries)
 
     @staticmethod
-    def parse(blob, is_little_endian):
-        buf = SeqBuffer(blob, is_little_endian)
+    def parse(blob, loader_context):
+        buf = SeqBuffer(blob, loader_context.is_little_endian)
         [v1,v2,nElems,v3] = buf.unpack('>HHii')
         print("KEY* header: %s" % [v1,v2,nElems,v3])
 
@@ -40,7 +47,7 @@ class CastTableSection: #------------------------------
         return repr(self.entries)
 
     @staticmethod
-    def parse(blob):
+    def parse(blob, loader_context):
         buf = SeqBuffer(blob)
         res = CastTableSection()
         while not buf.at_eof():
@@ -64,8 +71,8 @@ class CastMember: #------------------------------
         self.media[tag] = data
 
     @staticmethod
-    def parse(blob,snr, is_little_endian):
-        buf = SeqBuffer(blob, is_little_endian)
+    def parse(blob,snr, loader_context):
+        buf = SeqBuffer(blob)
         (type,) = buf.unpack('>i')
         castdata = CastMember.parse_castdata(type, buf)
         res = CastMember(snr,type, castdata)
@@ -156,30 +163,42 @@ def load_file(filename):
     with open(filename) as f:
         xheader = f.read(12)
         [magic,size,tag] = struct.unpack('!4si4s', xheader)
+
         is_little_endian = (magic == "XFIR")
-        if (magic=="RIFX" and tag=="MV93"):
-            sections_map = shockabsorber.loader.dxr_envelope.create_section_map(f)
-        elif (magic=="XFIR" and tag=="MDGF"):
-            sections_map = shockabsorber.loader.dcr_envelope.create_section_map(f)
+        if is_little_endian:
+            tag = rev(tag)
+            magic = rev(magic)
+        if magic != "RIFX":
+            raise Exception("Bad file type")
+
+        loader_context = LoaderContext(tag, is_little_endian)
+        print "DB| Loader context: %s / %s" % (tag, is_little_endian)
+        if (tag=="MV93"):
+            sections_map = shockabsorber.loader.dxr_envelope.create_section_map(f, loader_context)
+        elif (tag=="FGDM"):
+            sections_map = shockabsorber.loader.dcr_envelope.create_section_map(f, loader_context)
         else:
             raise Exception("Bad file type")
-        cast_table = create_cast_table(sections_map, is_little_endian)
+        #for e in sections_map.entries:
+        #    print "DB| section: %s: <%s>" % (e.tag, e.bytes())
+
+        cast_table = create_cast_table(sections_map, loader_context)
         #print "==== cast_table: ===="
         #for cm in cast_table: print "  %s" % cm
         return (cast_table,)
 
-def create_cast_table(mmap, is_little_endian):
+def create_cast_table(mmap, loader_context):
     # Read the relevant table sections:
     keys_e = mmap.entry_by_tag("KEY*")
     cast_e = mmap.entry_by_tag("CAS*")
-    cast_list_section = CastTableSection.parse(cast_e.bytes())
-    keys_section      = KeysSection.parse(keys_e.bytes(), is_little_endian)
+    cast_list_section = CastTableSection.parse(cast_e.bytes(), loader_context)
+    keys_section      = KeysSection.parse(keys_e.bytes(), loader_context)
 
     # Create cast table with basic cast-member info:
     def section_nr_to_cast_member(nr):
         if nr==0: return None
         cast_section = mmap[nr].bytes()
-        res = CastMember.parse(cast_section,nr, is_little_endian)
+        res = CastMember.parse(cast_section,nr, loader_context)
         return res
     cast_table = map(section_nr_to_cast_member, cast_list_section.entries)
 
@@ -208,7 +227,7 @@ def create_cast_table(mmap, is_little_endian):
 
         # Add it:
         print "DB| adding media %s to cast_id %d" % (tag,cast_id)
-        print "DB| media contents(#%d:%s)=<%s>" % (media_section_id,tag,media.data)
+        #print "DB| media contents(#%d:%s)=<%s>" % (media_section_id,tag,media.data)
         # Find the cast member to add media to:
         cast_member = aux_map[cast_id]
         cast_member.add_media(tag, media)

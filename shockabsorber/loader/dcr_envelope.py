@@ -31,7 +31,12 @@ class ZSectionImpl(CommonSectionImpl):  #------------------------------
 
     def read_bytes(self):
         file = self.file
+        print "DB| read_bytes (ZSectionImpl #%d): 0x%x+0x%x" % (self.nr, self.offset, self.size)
         file.seek(self.offset)
+        # xheader = file.read(8)
+        # [tag,size] = struct.unpack('!4si', xheader)
+        # if tag != self.tag:
+        #     raise Exception("section header is actually %s, not %s as expected" % (tag, self.tag))
         comp_data = file.read(self.size)
         return zlib.decompress(comp_data)
 #--------------------------------------------------
@@ -68,6 +73,9 @@ class ABMPEntry:  #------------------------------
         self.size = size
         self.offset = offset
         self.repr_mode = repr_mode
+
+    def __repr__(self):
+        return "<ABMPEntry #%d '%s' @0x%x+0x%x mode=%d>" % (self.nr, self.tag, self.offset, self.size, self.repr_mode)
 #--------------------------------------------------
 
 def parse_abmp_section(blob, file):
@@ -117,7 +125,7 @@ class LnamSection: #------------------------------
         return ([v1,v2,len1,len2,v3,numElems], name_map)
 #--------------------------------------------------
 
-def create_section_map(f):
+def create_section_map(f, loader_context):
     while True:
         xsectheader = f.read(4)
         if len(xsectheader) < 4: break
