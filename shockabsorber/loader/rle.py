@@ -24,7 +24,7 @@ def rle_decode(width, height, fullwidth, bpp, encoded_data):
     #print "DB| rle: converted %s to %s" % (encoded_data, res)
 
     if bpp == 8:
-        return make_greyscale_image(width, height, fullwidth, res)
+        return make_8bit_rbg_image(width, height, fullwidth, res)
     elif bpp == 16:
         return make_16bit_rbg_image(width, height, fullwidth, res)
     elif bpp == 32:
@@ -37,8 +37,8 @@ def make_greyscale_image(width, height, fullwidth, data):
     return pyglet.image.ImageData(width, height, 'I', data, -fullwidth)
 
 def make_8bit_rbg_image(width, height, fullwidth, data):
-    color_res = ""
-    for c in res:
+    color_data = ""
+    for c in data:
         nr = ord(c)
         r = nr >> 5
         g = (nr >> 2) & 7
@@ -47,10 +47,10 @@ def make_8bit_rbg_image(width, height, fullwidth, data):
         #g = (nr // 6) % 6
         #b = nr % 6
         #if r>5: r=5; g=5; b=5
-        color_res += chr(r*(255//7))
-        color_res += chr(g*(255//7))
-        color_res += chr(b*(255//3))
-    return pyglet.image.ImageData(width, height, 'RGB', color_res, -3*width)
+        color_data += chr(r*(255//7))
+        color_data += chr(g*(255//7))
+        color_data += chr(b*(255//3))
+    return pyglet.image.ImageData(width, height, 'RGB', color_data, -3*fullwidth)
 
 def make_16bit_rbg_image(width, height, fullwidth, data):
     color_res = ""
