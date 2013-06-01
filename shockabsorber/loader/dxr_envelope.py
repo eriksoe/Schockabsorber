@@ -27,7 +27,7 @@ def parse_mmap_section(blob, file):
     print("mmap header: %s" % [v1,v2,nElems,nUsed,junkPtr,v3,freePtr])
 
     sections = []
-    while not buf.at_eof():
+    for i in range(nUsed):
         [tag, size, offset, w1,w2, link] = buf.unpack('>4sIIhhi')
         #print("mmap entry: %s" % [tag, size, offset, w1,w2, link])
         sections.append(SectionImpl(tag, size, offset, file))
@@ -46,6 +46,6 @@ class SectionImpl(Section):  #------------------------------
         xheader = file.read(8)
         [tag,size] = struct.unpack('!4si', xheader)
         if tag != self.tag:
-            raise ("section header is actually %s, not %s as expected" % (tag, self.tag))
+            raise Exception("section header is actually %s, not %s as expected" % (tag, self.tag))
         return file.read(self.size)
 #--------------------------------------------------
