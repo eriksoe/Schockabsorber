@@ -35,13 +35,15 @@ class SeqBuffer:  #------------------------------
         return str
 
     def unpackVarint(self):
-        d = ord(self.buf[self.offset])
-        #print "DB| unpackVarint: %d" % d
-        self.offset += 1
-        if d<128:
-            return d
-        else:
-            return ((d-128)<<7) | self.unpackVarint()
+        acc = 0
+        while True:
+            d = ord(self.buf[self.offset])
+            #print "DB| unpackVarint: %d" % d
+            self.offset += 1
+            acc = (acc<<7) | (d & 0x7F)
+            if d<128:
+                if acc > 0x80000000: acc -= 0x100000000 # Convert to sint32
+                return acc
 
     def readBytes(self, len):
         bytes = self.buf[self.offset:self.offset+len]

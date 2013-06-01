@@ -97,15 +97,10 @@ def parse_abmp_section(blob, file):
         [tag] = buf.unpack('<4s')
         tag = rev(tag)
         print("ABMP entry: %s" % ([id, tag,
-                                           offset, comp_size, decomp_size,
-                                           repr_mode]))
+                                   offset, comp_size, decomp_size,
+                                   repr_mode]))
         sections.append(ABMPEntry(id, tag, comp_size, offset, repr_mode))
 
-        # if w1!=0x3fff:
-        #     usum += w2
-        # else:
-        #     csum += w2+1
-        #     #w1sum += w1; w2sum += w2; w3sum += w3; w4sum += w4
     print "Bytes left in ABMP section: %d" % buf.bytes_left()
     # print "Sums: %s" % [csum, usum]
     return sections
@@ -159,7 +154,7 @@ def create_section_map(f, loader_context):
     for e in abmp:
         snr = e.nr
         print "DB| section nr %s: %s" % (snr,e)
-        if e.offset == 0x3fff:
+        if e.offset == -1:
             # Compressed, in ILS section.
             section = LateSectionImpl(snr,e.tag,e.size)
             sections_in_ils_by_nr[snr] = section
