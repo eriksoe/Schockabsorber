@@ -30,7 +30,11 @@ def parse_mmap_section(blob, file):
     for i in range(nUsed):
         [tag, size, offset, w1,w2, link] = buf.unpack('>4sIIhhi')
         #print("mmap entry: %s" % [tag, size, offset, w1,w2, link])
-        sections.append(SectionImpl(tag, size, offset, file))
+        if tag=="free" or tag=="junk":
+            section = None
+        else:
+            section = SectionImpl(tag, size, offset, file)
+        sections.append(section)
     return SectionMap(sections)
 
 
