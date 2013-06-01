@@ -58,10 +58,6 @@ class UncompSectionImpl(CommonSectionImpl):  #------------------------------
         print "DB| DCR read_bytes: @%d+%d" % (self.offset, self.size)
         file = self.file
         file.seek(self.offset)
-        xheader = file.read(8)
-        [tag,size] = struct.unpack('!4si', xheader)
-        if tag != self.tag:
-            raise ("section header is actually %s, not %s as expected" % (tag, self.tag))
         return file.read(self.size)
 #--------------------------------------------------
 
