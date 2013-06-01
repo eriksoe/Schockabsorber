@@ -48,8 +48,14 @@ class SeqBuffer:  #------------------------------
         self.offset += len
         return bytes
 
+    def seek(self,new_offset):
+        self.offset = new_offset
+
     def bytes_left(self):
         return len(self.buf) - self.offset
+
+    def peek_bytes_left(self):
+        return self.buf[self.offset:]
 
     def at_eof(self):
         return self.offset >= len(self.buf)

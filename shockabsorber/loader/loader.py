@@ -6,7 +6,7 @@
 import struct
 from shockabsorber.model.sections import Section, SectionMap
 from shockabsorber.loader.util import SeqBuffer
-import shockabsorber.loader.dxr_loader
+import shockabsorber.loader.dxr_envelope
 import shockabsorber.loader.dcr_envelope
 
 class KeysSection: #------------------------------
@@ -95,23 +95,25 @@ class ImageCastType(CastType): #--------------------
         self.misc = misc
 
     def repr_extra(self):
-        return " name=\"%s\" dims=%s anchor=%s misc=%s" % (
-            self.name, self.dims, self.anchor, self.misc)
+        return " name=\"%s\" dims=%s anchor=%s bpp=%d misc=%s" % (
+            self.name, self.dims, self.anchor, self.bpp, self.misc)
 
     @staticmethod
     def parse(buf):
         [v1,v2,v3,v4,v5,v6,v7, nElems] = buf.unpack('>6iHi')
+        dims_offset = v1 + 8
         for i in range(nElems):
             (_tmp,) = buf.unpack('>i')
         [v8] = buf.unpack('>i')
         name = buf.unpackString8()
+        buf.seek(dims_offset)
         [v9,v10,v11, height,width,v12,v13,v14, anchor_x,anchor_y,
          v15,bits_per_pixel,v17
-        ] = buf.unpack('>hIi HH ihh HH bbi', '<hIi HH ihh HH bbi')
+        ] = buf.unpack('>hIi HH ihh HH bbi')
         total_width = v10 & 0x7FFF
         v10 = "0x%x" % v10
         v12 = "0x%x" % v12
-        print "DB| ImageCastType.parse: ILE=%s %s" % (buf.is_little_endian, [(width, height), (total_width,height)])
+        print "DB| ImageCastType.parse: ILE=%s %s" % (buf.is_little_endian, [(width, height), (total_width,height), bits_per_pixel])
         misc = ((v1,v2,v3,v4,v5,v6,v7,v8),
                 (v9,v10,v11), (v12,v13,v14), (v15,v17))
         return ImageCastType(name,
@@ -191,19 +193,24 @@ def create_cast_table(mmap, is_little_endian):
     for e in keys_section.entries:
         cast_id = e["cast_id"]
         tag = e["tag"]
-        if cast_id != 0 and (cast_id & 1024)==0 \
-           and tag != "Thum" and tag != "ediM":
-            # Find the cast member to add media to:
-            cast_member = aux_map[cast_id]
+        if cast_id==0:
+            continue
+        if not cast_id in aux_map:
+            print "No cast section %d (for media section %s)" % (cast_id,tag)
+            continue
+        if (cast_id & 1024)>0 or tag == "Thum" or tag == "ediM":
+            continue
+        # Read the media:
+        media_section_id = e["section_id"]
+        media_section_e = mmap[media_section_id]
+        media_section = media_section_e.bytes()
+        media = Media.parse(media_section_id, tag, media_section)
 
-            # Read the media:
-            media_section_id = e["section_id"]
-            media_section_e = mmap[media_section_id]
-            media_section = media_section_e.bytes()
-            media = Media.parse(media_section_id, tag, media_section)
-
-            # Add it:
-            #print "DB| adding media %s to cast_id %d" % (tag,cast_id)
-            cast_member.add_media(tag, media)
+        # Add it:
+        print "DB| adding media %s to cast_id %d" % (tag,cast_id)
+        print "DB| media contents(#%d:%s)=<%s>" % (media_section_id,tag,media.data)
+        # Find the cast member to add media to:
+        cast_member = aux_map[cast_id]
+        cast_member.add_media(tag, media)
 
     return cast_table
