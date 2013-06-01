@@ -31,7 +31,7 @@ def parse_mmap_section(blob, file):
         [tag, size, offset, w1,w2, link] = buf.unpack('>4sIIhhi')
         #print("mmap entry: %s" % [tag, size, offset, w1,w2, link])
         if tag=="free" or tag=="junk":
-            section = None
+            section = NullSection(tag)
         else:
             section = SectionImpl(tag, size, offset, file)
         sections.append(section)
@@ -52,4 +52,12 @@ class SectionImpl(Section):  #------------------------------
         if tag != self.tag:
             raise Exception("section header is actually %s, not %s as expected" % (tag, self.tag))
         return file.read(self.size)
+#--------------------------------------------------
+
+class NullSection(Section):  #------------------------------
+    def __init__(self,tag):
+        Section.__init__(self,tag,-1)
+
+    def read_bytes(self):
+        return None
 #--------------------------------------------------
