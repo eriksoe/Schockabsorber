@@ -186,11 +186,11 @@ def load_file(filename):
         #     if e.tag=="Lscr": print "DB| section: %s: <%s>" % (e.tag, e.bytes())
 
         cast_table = create_cast_table(sections_map, loader_context)
-        script_ctx = create_script_context(sections_map, loader_context)
+        script_ctx = script_parser.create_script_context(sections_map, loader_context)
 
         #print "==== cast_table: ===="
         #for cm in cast_table: print "  %s" % cm
-        print "DB| script_ctx=%s" % script_ctx
+        print "DB| script_ctx=%s" % (script_ctx,)
         return (cast_table,script_ctx)
 
 def create_cast_table(mmap, loader_context):
@@ -239,9 +239,3 @@ def create_cast_table(mmap, loader_context):
         cast_member.add_media(tag, media)
 
     return cast_table
-
-def create_script_context(mmap, loader_context):
-    lctx_e = mmap.entry_by_tag("LctX")
-    lnam_e = mmap.entry_by_tag("Lnam")
-    names = script_parser.parse_lnam_section(lnam_e.bytes())
-    return (names,)
