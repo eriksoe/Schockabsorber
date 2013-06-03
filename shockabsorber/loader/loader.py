@@ -5,8 +5,8 @@
 
 import struct
 from shockabsorber.model.sections import Section, SectionMap
-from shockabsorber.model.scripts import ScriptNames
 from shockabsorber.loader.util import SeqBuffer, rev
+from . import script_parser
 import shockabsorber.loader.dxr_envelope
 import shockabsorber.loader.dcr_envelope
 
@@ -159,18 +159,6 @@ class BITDMedia(Media): #------------------------------
         "TODO"
 #--------------------------------------------------
 
-def parse_lnam_section(blob):
-    buf = SeqBuffer(blob)
-    [v1,v2,len1,len2,v3,numElems] = buf.unpack(">iiiiHH")
-    names = []
-    for i in range(numElems):
-        names.append(buf.unpackString8())
-    name_map = {} # For better printing
-    for i in range(numElems):
-        name_map[i] = names[i]
-    return ScriptNames(names, [v1,v2,len1,len2,v3])
-#--------------------------------------------------
-
 
 def load_file(filename):
     with open(filename) as f:
@@ -255,5 +243,5 @@ def create_cast_table(mmap, loader_context):
 def create_script_context(mmap, loader_context):
     lctx_e = mmap.entry_by_tag("LctX")
     lnam_e = mmap.entry_by_tag("Lnam")
-    names = parse_lnam_section(lnam_e.bytes())
+    names = script_parser.parse_lnam_section(lnam_e.bytes())
     return (names,)
