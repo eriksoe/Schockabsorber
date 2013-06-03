@@ -5,6 +5,7 @@
 
 import struct
 from shockabsorber.model.sections import Section, SectionMap
+from shockabsorber.model.scripts import ScriptNames
 from shockabsorber.loader.util import SeqBuffer, rev
 import shockabsorber.loader.dxr_envelope
 import shockabsorber.loader.dcr_envelope
@@ -158,6 +159,18 @@ class BITDMedia(Media): #------------------------------
         "TODO"
 #--------------------------------------------------
 
+def parse_lnam_section(blob):
+    buf = SeqBuffer(blob)
+    [v1,v2,len1,len2,v3,numElems] = buf.unpack(">iiiiHH")
+    names = []
+    for i in range(numElems):
+        names.append(buf.unpackString8())
+    name_map = {} # For better printing
+    for i in range(numElems):
+        name_map[i] = names[i]
+    return ScriptNames(names, [v1,v2,len1,len2,v3])
+#--------------------------------------------------
+
 
 def load_file(filename):
     with open(filename) as f:
@@ -179,13 +192,18 @@ def load_file(filename):
             sections_map = shockabsorber.loader.dcr_envelope.create_section_map(f, loader_context)
         else:
             raise Exception("Bad file type")
-        #for e in sections_map.entries:
-        #    print "DB| section: %s: <%s>" % (e.tag, e.bytes())
+
+        # for e in sections_map.entries:
+        #     if e.tag=="Lnam": print "DB| section: %s: <%s>" % (e.tag, LnamSection.parse(e.bytes()))
+        #     if e.tag=="Lscr": print "DB| section: %s: <%s>" % (e.tag, e.bytes())
 
         cast_table = create_cast_table(sections_map, loader_context)
+        script_ctx = create_script_context(sections_map, loader_context)
+
         #print "==== cast_table: ===="
         #for cm in cast_table: print "  %s" % cm
-        return (cast_table,)
+        print "DB| script_ctx=%s" % script_ctx
+        return (cast_table,script_ctx)
 
 def create_cast_table(mmap, loader_context):
     # Read the relevant table sections:
@@ -233,3 +251,9 @@ def create_cast_table(mmap, loader_context):
         cast_member.add_media(tag, media)
 
     return cast_table
+
+def create_script_context(mmap, loader_context):
+    lctx_e = mmap.entry_by_tag("LctX")
+    lnam_e = mmap.entry_by_tag("Lnam")
+    names = parse_lnam_section(lnam_e.bytes())
+    return (names,)

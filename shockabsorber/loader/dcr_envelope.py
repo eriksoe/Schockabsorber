@@ -106,20 +106,6 @@ def parse_abmp_section(blob, file):
     return sections
 #--------------------------------------------------
 
-class LnamSection: #------------------------------
-    @staticmethod
-    def parse(blob):
-        buf = SeqBuffer(blob)
-        [v1,v2,len1,len2,v3,numElems] = buf.unpack(">iiiiHH")
-        names = []
-        for i in range(numElems):
-            names.append(buf.unpackString8())
-        name_map = {} # For better printing
-        for i in range(numElems):
-            name_map[i] = names[i]
-        return ([v1,v2,len1,len2,v3,numElems], name_map)
-#--------------------------------------------------
-
 def create_section_map(f, loader_context):
     while True:
         xsectheader = f.read(4)

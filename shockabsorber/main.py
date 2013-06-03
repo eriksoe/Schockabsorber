@@ -5,7 +5,7 @@ import shockabsorber.loader.rle
 
 # For now, this is just a test program showing the bitmap images in a file.
 def main():
-    (cast_table,) = shockabsorber.loader.loader.load_file(sys.argv[1])
+    (cast_table,script_ctx) = shockabsorber.loader.loader.load_file(sys.argv[1])
 
     return
     images = []
