@@ -56,20 +56,24 @@ def parse_lscr_section(blob, names):
     [v3,v4,v5,v6,v7,v8,v9,v10,v11] = buf.unpack('>6ihhh')
     [after_strings_offset, v12, count3, offset3, count4, offset4] = buf.unpack('>iiHiHi')
     [handler_count, handler_offset] = buf.unpack('>Hi')
-    [string_count, varnames_offset, v20, strings_offset] = buf.unpack('>Hiii')
+    [string_count, footnote_offset, v20, strings_offset] = buf.unpack('>Hiii')
     print "DB| Lscr extras: %s" % ([[v1,v2,totalLength,totalLength2],
                                     [handler_offset0,count1,count2],
                                     [v3,v4,v5,v6,v7,v8,v9,v10,v11],
                                     [v12, count3, offset4, count4, offset4],
                                     [v20]],)
-    print "DB| Lscr offsets: %s" % ([handler_offset0, handler_offset, varnames_offset, strings_offset, after_strings_offset, offset3, offset4],)
+    print "DB| Lscr offsets: %s" % ([handler_offset0, handler_offset, footnote_offset, strings_offset, after_strings_offset, offset3, offset4],)
     script_id = count1 # ?
     script_id2 = v9 # ?
     varnames_count = v8 # ?
 
+    print "DB| string_count = %d varnames_count = %d handler_count = %d" % (string_count,varnames_count, handler_count)
+
     strings = parse_lscr_string_literals(blob[strings_offset:after_strings_offset],
                                          string_count)
-    print "DB| string_count = %d varnames_count = %d handler_count = %d" % (string_count,varnames_count, handler_count)
+    handlers_meta = parse_lscr_handler_table(blob[handler_offset:
+                                                  handler_offset + 46*handler_count],
+                                             handler_count, names)
     print "DB| Lscr.strings: %s" % (dict(enumerate(strings)),)
     return (strings,"TODO")
 
@@ -88,3 +92,27 @@ def parse_lscr_string_literals(blob, count):
 
     #print "DB| parse_lscr_string_literals:  bytes left: %d" % (buf.bytes_left())
     return res
+
+def parse_lscr_handler_table(blob, count, names):
+    buf = SeqBuffer(blob)
+    res = []
+    for i in range(count):
+        [handler_name_nr, v1, code_length, code_offset] = buf.unpack('>hhii')
+        [varnames_length, varnames_offset,
+         length5, offset5,
+         length7, offset7, v8] = buf.unpack('>hihihii')
+        [v10, length12, offset12, v13] = buf.unpack('>hhii')
+
+        handler_name = names[handler_name_nr]
+        print "DB| * handler_name = '%s' (0x%x)" % (handler_name, handler_name_nr)
+        print "DB|   subsections = %s" % ([(code_offset, code_length),
+                                           (varnames_offset, varnames_length),
+                                           (offset5, length5),
+                                           (offset7, length7),
+                                           (offset12, length12)],)
+        print "DB|   handler extras = %s" % ([v1, v8, v10, v13],)
+        misc = [v1, v8, v10, v13]
+    return (handler_name_nr,
+            (code_offset, code_length),
+            (varnames_offset, varnames_length),
+            misc)
