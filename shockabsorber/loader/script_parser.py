@@ -77,14 +77,15 @@ def parse_lscr_section(blob, names):
     for h in handlers_meta:
         [name, code_slice, varnames_slice, varname_count,
          auxslice1, auxslice2, auxslice3, misc] = h
-        code = subblob(blob, code_slice)
         varnames = parse_lscr_varnames_table(subblob(blob, varnames_slice), varname_count,
                                              names)
         aux1 = subblob(blob, auxslice1)
         aux2 = subblob(blob, auxslice2)
         aux3 = subblob(blob, auxslice3)
-        print "DB| handler %s:\n    code=<%s>\n    vars=%s\n    aux=<%s>/<%s>/<%s>" % (
-            name, code, varnames, aux1, aux2, aux3)
+        code_blob = subblob(blob, code_slice)
+        code = parse_lscr_code(code_blob, names, strings)
+        print "DB| handler %s:\n    code=%s\n    code-bin=<%s>\n    vars=%s\n    aux=<%s>/<%s>/<%s>" % (
+            name, code, code_blob, varnames, aux1, aux2, aux3)
     return (strings,"TODO")
 
 def parse_lscr_string_literals(blob, count):
@@ -139,6 +140,50 @@ def parse_lscr_varnames_table(blob, count, names):
         res.append(names[name_nr])
     return res
 
+OPCODE_SPEC = {
+    0x01: ("Return", []),
+    0x41: ("Push-int", ['int8']),
+    0x44: ("Push-string", ['str8']),
+    0x4b: ("Push-local", ['int8']),
+
+    0x56: ("Call-local", ['int8']),
+    0x57: ("Call", ['sym8']),
+
+    0x61: ("Get-field", ['sym8']),
+    0x62: ("Put-field", ['sym8']),
+}
+
+def parse_lscr_code(blob, names, strings):
+    print "DB| handler code blob (length %d): <%s>" % (len(blob), blob)
+    buf = SeqBuffer(blob)
+    res = []
+    while not buf.at_eof():
+        [opcode] = buf.unpack('B')
+        if opcode in OPCODE_SPEC:
+            (opcode,argspec) = OPCODE_SPEC[opcode]
+            args = []
+            for a in argspec:
+                if a=='int8':
+                    [arg] = buf.unpack('B')
+                elif a=='str8':
+                    [arg] = buf.unpack('B')
+                    arg = strings[arg]
+                elif a=='sym8':
+                    [arg] = buf.unpack('B')
+                    arg = names[arg]
+                args.append(arg)
+        # TODO: Remove these fallbacks, eventually:
+        elif opcode >= 0x80:
+            [arg] = buf.unpack('H')
+            args = [arg]
+        else:
+            [arg] = buf.unpack('B')
+            args = [arg]
+        print "DB|    code: %s" % ((opcode,args),)
+        res.append((opcode,args))
+    return res
+
+###========== Utilities: ========================================
 def subblob(blob, slice_desc):
     (offset, length) = slice_desc
     return blob[offset : offset + length]
