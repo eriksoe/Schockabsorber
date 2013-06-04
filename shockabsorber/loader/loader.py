@@ -108,7 +108,7 @@ class ImageCastType(CastType): #--------------------
 
     @staticmethod
     def parse(buf):
-        [v1,v2,v3,v4,v5,v6,v7, nElems] = buf.unpack('>6iHi')
+        [v1,v2,v3,v4,v5,v6,v7,v7b, nElems] = buf.unpack('>6iHHH')
         dims_offset = v1 + 8
         for i in range(nElems):
             (_tmp,) = buf.unpack('>i')
@@ -122,7 +122,7 @@ class ImageCastType(CastType): #--------------------
         v10 = "0x%x" % v10
         v12 = "0x%x" % v12
         print "DB| ImageCastType.parse: ILE=%s %s" % (buf.is_little_endian, [(width, height), (total_width,height), bits_per_pixel])
-        misc = ((v1,v2,v3,v4,v5,v6,v7,v8),
+        misc = ((v1,v2,v3,v4,v5,v6,v7,v7b,v8),
                 (v9,v10,v11), (v12,v13,v14), (v15,v17))
         return ImageCastType(name,
                              (width, height),
@@ -199,6 +199,7 @@ def create_cast_table(mmap, loader_context):
     cast_e = mmap.entry_by_tag("CAS*")
     cast_list_section = CastTableSection.parse(cast_e.bytes(), loader_context)
     keys_section      = KeysSection.parse(keys_e.bytes(), loader_context)
+    print "DB| Cast list: %s" % cast_list_section
 
     # Create cast table with basic cast-member info:
     def section_nr_to_cast_member(nr):
