@@ -71,10 +71,20 @@ def parse_lscr_section(blob, names):
 
     strings = parse_lscr_string_literals(blob[strings_offset:after_strings_offset],
                                          string_count)
-    handlers_meta = parse_lscr_handler_table(blob[handler_offset:
-                                                  handler_offset + 46*handler_count],
-                                             handler_count, names)
     print "DB| Lscr.strings: %s" % (dict(enumerate(strings)),)
+    handlers_meta = parse_lscr_handler_table(subblob(blob, (handler_offset, 46*handler_count)),
+                                             handler_count, names)
+    for h in handlers_meta:
+        [name, code_slice, varnames_slice, varname_count,
+         auxslice1, auxslice2, auxslice3, misc] = h
+        code = subblob(blob, code_slice)
+        varnames = parse_lscr_varnames_table(subblob(blob, varnames_slice), varname_count,
+                                             names)
+        aux1 = subblob(blob, auxslice1)
+        aux2 = subblob(blob, auxslice2)
+        aux3 = subblob(blob, auxslice3)
+        print "DB| handler %s:\n    code=<%s>\n    vars=%s\n    aux=<%s>/<%s>/<%s>" % (
+            name, code, varnames, aux1, aux2, aux3)
     return (strings,"TODO")
 
 def parse_lscr_string_literals(blob, count):
@@ -98,7 +108,7 @@ def parse_lscr_handler_table(blob, count, names):
     res = []
     for i in range(count):
         [handler_name_nr, v1, code_length, code_offset] = buf.unpack('>hhii')
-        [varnames_length, varnames_offset,
+        [varname_count, varnames_offset,
          length5, offset5,
          length7, offset7, v8] = buf.unpack('>hihihii')
         [v10, length12, offset12, v13] = buf.unpack('>hhii')
@@ -106,13 +116,29 @@ def parse_lscr_handler_table(blob, count, names):
         handler_name = names[handler_name_nr]
         print "DB| * handler_name = '%s' (0x%x)" % (handler_name, handler_name_nr)
         print "DB|   subsections = %s" % ([(code_offset, code_length),
-                                           (varnames_offset, varnames_length),
+                                           (varnames_offset, varname_count),
                                            (offset5, length5),
                                            (offset7, length7),
                                            (offset12, length12)],)
         print "DB|   handler extras = %s" % ([v1, v8, v10, v13],)
         misc = [v1, v8, v10, v13]
-    return (handler_name_nr,
-            (code_offset, code_length),
-            (varnames_offset, varnames_length),
-            misc)
+        res.append((handler_name,
+                    (code_offset, code_length),
+                    (varnames_offset, 2 * varname_count), varname_count,
+                    (offset5, length5),
+                    (offset7, length7),
+                    (offset12, length12),
+                    misc))
+    return res
+
+def parse_lscr_varnames_table(blob, count, names):
+    buf = SeqBuffer(blob)
+    res = []
+    for i in range(count):
+        [name_nr] = buf.unpack('>h')
+        res.append(names[name_nr])
+    return res
+
+def subblob(blob, slice_desc):
+    (offset, length) = slice_desc
+    return blob[offset : offset + length]
