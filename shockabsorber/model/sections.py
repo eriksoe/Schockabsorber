@@ -14,6 +14,9 @@ class SectionMap: #------------------------------
     def __getitem__(self,idx):
         return self.entries[idx]
 
+    def __contains__(self,idx):
+        return self.entries.__contains__(idx)
+
     def entry_by_tag(self, tag):
         for e in self.entries:
             if e.tag == tag:
