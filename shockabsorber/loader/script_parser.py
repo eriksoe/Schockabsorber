@@ -63,6 +63,8 @@ def parse_lscr_section(blob, names):
                                     [v12, count3, offset4, count4, offset4],
                                     [v20]],)
     print "DB| Lscr offsets: %s" % ([handler_offset0, handler_offset, footnote_offset, strings_offset, after_strings_offset, offset3, offset4],)
+    print "DB|   part-before-handler-table: <%s>" % (buf.buf[handler_offset0:handler_offset],)
+    print "DB|   footnotes-part: <%s>" % (buf.buf[footnote_offset:strings_offset],)
     script_id = count1 # ?
     script_id2 = v9 # ?
     varnames_count = v8 # ?
@@ -83,9 +85,10 @@ def parse_lscr_section(blob, names):
         aux2 = subblob(blob, auxslice2)
         aux3 = subblob(blob, auxslice3)
         code_blob = subblob(blob, code_slice)
+        print "DB| handler %s:\n    code-bin=<%s>\n    vars=%s\n    aux=<%s>/<%s>/<%s>" % (
+            name, code_blob, varnames, aux1, aux2, aux3)
         code = parse_lscr_code(code_blob, names, strings, varnames)
-        print "DB| handler %s:\n    code=%s\n    code-bin=<%s>\n    vars=%s\n    aux=<%s>/<%s>/<%s>" % (
-            name, code, code_blob, varnames, aux1, aux2, aux3)
+        print "DB| handler %s:\n    code=%s" % (name, code)
     return (strings,"TODO")
 
 def parse_lscr_string_literals(blob, count):
@@ -145,21 +148,25 @@ OPCODE_SPEC = {
     0x03: ("Push-int-0", []),
     0x05: ("Add", []),
     0x06: ("Subtract", []),
+    0x0f: ("Equals", []),
 
     0x10: ("Greater-than", []),
 
     0x21: ("Push-something ('into')", []),
 
     0x41: ("Push-int", ['int8']),
-    # 42: push-arg-count I
-    # 43: push-arg-count II
+    0x42: ("Set-arg-count-A", ['int8']),
+    0x43: ("Set-arg-count-B", ['int8']),
     0x44: ("Push-string", ['str8']),
+    0x45: ("Push-symbol", ['sym8']),
+    0x4a: ("Push-property", ['sym8']),
     0x4b: ("Push-local", ['locvar8']),
 
+    0x50: ("Store-property", ['sym8']),
     0x56: ("Call-local", ['int8']),
     0x57: ("Call", ['sym8']),
 
-    0x66: ("Get-the", ['sym8']),
+    0x66: ("Call-getter", ['sym8']), # 'the'
     0x70: ("Get-special-field", ['sym8']),
 
     0x61: ("Get-field", ['sym8']),
@@ -168,7 +175,10 @@ OPCODE_SPEC = {
      # 16-versions of (opcode-0x40):
     0x85: ("Push-symbol", ['sym16']),
     0x97: ("Call", ['sym16']),
+    0x9f: ("Call-getter", ['sym16']), # 'the'
+    0xa6: ("Call-getter-B", ['sym16']), # 'the'
     0xa7: ("Call-special", ['sym16']),
+    0xae: ("Push-int", ['int16']),
 
     0x95: ("Jump-relative-if", ['int16']),
 }
@@ -185,7 +195,7 @@ def parse_lscr_code(blob, names, strings, names_of_locals):
             args = []
             for a in argspec:
                 if a=='int8':
-                    [arg] = buf.unpack('B')
+                    [arg] = buf.unpack('b')
                 elif a=='str8':
                     [arg] = buf.unpack('B')
                     arg = strings[arg]
@@ -196,7 +206,7 @@ def parse_lscr_code(blob, names, strings, names_of_locals):
                     [arg] = buf.unpack('B')
                     arg = (arg,names_of_locals[arg])
                 elif a=='int16':
-                    [arg] = buf.unpack('>H')
+                    [arg] = buf.unpack('>h')
                 elif a=='sym16':
                     [arg] = buf.unpack('>H')
                     arg = names[arg]
