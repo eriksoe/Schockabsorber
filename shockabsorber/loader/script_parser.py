@@ -83,7 +83,7 @@ def parse_lscr_section(blob, names):
         aux2 = subblob(blob, auxslice2)
         aux3 = subblob(blob, auxslice3)
         code_blob = subblob(blob, code_slice)
-        code = parse_lscr_code(code_blob, names, strings)
+        code = parse_lscr_code(code_blob, names, strings, varnames)
         print "DB| handler %s:\n    code=%s\n    code-bin=<%s>\n    vars=%s\n    aux=<%s>/<%s>/<%s>" % (
             name, code, code_blob, varnames, aux1, aux2, aux3)
     return (strings,"TODO")
@@ -142,22 +142,43 @@ def parse_lscr_varnames_table(blob, count, names):
 
 OPCODE_SPEC = {
     0x01: ("Return", []),
+    0x03: ("Push-int-0", []),
+    0x05: ("Add", []),
+    0x06: ("Subtract", []),
+
+    0x10: ("Greater-than", []),
+
+    0x21: ("Push-something ('into')", []),
+
     0x41: ("Push-int", ['int8']),
+    # 42: push-arg-count I
+    # 43: push-arg-count II
     0x44: ("Push-string", ['str8']),
-    0x4b: ("Push-local", ['int8']),
+    0x4b: ("Push-local", ['locvar8']),
 
     0x56: ("Call-local", ['int8']),
     0x57: ("Call", ['sym8']),
 
+    0x66: ("Get-the", ['sym8']),
+    0x70: ("Get-special-field", ['sym8']),
+
     0x61: ("Get-field", ['sym8']),
     0x62: ("Put-field", ['sym8']),
+
+     # 16-versions of (opcode-0x40):
+    0x85: ("Push-symbol", ['sym16']),
+    0x97: ("Call", ['sym16']),
+    0xa7: ("Call-special", ['sym16']),
+
+    0x95: ("Jump-relative-if", ['int16']),
 }
 
-def parse_lscr_code(blob, names, strings):
+def parse_lscr_code(blob, names, strings, names_of_locals):
     print "DB| handler code blob (length %d): <%s>" % (len(blob), blob)
     buf = SeqBuffer(blob)
     res = []
     while not buf.at_eof():
+        codepos = buf.offset
         [opcode] = buf.unpack('B')
         if opcode in OPCODE_SPEC:
             (opcode,argspec) = OPCODE_SPEC[opcode]
@@ -171,16 +192,24 @@ def parse_lscr_code(blob, names, strings):
                 elif a=='sym8':
                     [arg] = buf.unpack('B')
                     arg = names[arg]
+                elif a=='locvar8':
+                    [arg] = buf.unpack('B')
+                    arg = (arg,names_of_locals[arg])
+                elif a=='int16':
+                    [arg] = buf.unpack('>H')
+                elif a=='sym16':
+                    [arg] = buf.unpack('>H')
+                    arg = names[arg]
                 args.append(arg)
         # TODO: Remove these fallbacks, eventually:
         elif opcode >= 0x80:
-            [arg] = buf.unpack('H')
+            [arg] = buf.unpack('>H')
             args = [arg]
         else:
             [arg] = buf.unpack('B')
             args = [arg]
-        print "DB|    code: %s" % ((opcode,args),)
-        res.append((opcode,args))
+        print "DB|    code: %s" % ((codepos,opcode,args),)
+        res.append((codepos,opcode,args))
     return res
 
 ###========== Utilities: ========================================
