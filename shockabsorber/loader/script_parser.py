@@ -146,11 +146,17 @@ def parse_lscr_varnames_table(blob, count, names):
 OPCODE_SPEC = {
     0x01: ("Return", []),
     0x03: ("Push-int-0", []),
+    0x04: ("Multiply", []),
     0x05: ("Add", []),
     0x06: ("Subtract", []),
+    0x07: ("Divide", []),
+    0x0e: ("Not-equals", []),
+    0x0d: ("Less-than-or-equals", []),
     0x0f: ("Equals", []),
 
     0x10: ("Greater-than", []),
+    0x15: ("String-contains", []),
+    0x1e: ("Construct-linear-array", []),
 
     0x21: ("Push-something ('into')", []),
 
@@ -159,14 +165,21 @@ OPCODE_SPEC = {
     0x43: ("Set-arg-count-B", ['int8']),
     0x44: ("Push-string", ['str8']),
     0x45: ("Push-symbol", ['sym8']),
+    0x49: ("Push-global", ['sym8']),
     0x4a: ("Push-property", ['sym8']),
-    0x4b: ("Push-local", ['locvar8']),
+    0x4b: ("Push-parameter", ['locvar8']),
+    0x4c: ("Push-local", ['int8']), # ~> locvar8
 
     0x50: ("Store-property", ['sym8']),
+    0x52: ("Store-local", ['int8']), # ~> locvar8
     0x56: ("Call-local", ['int8']),
     0x57: ("Call", ['sym8']),
+    0x5c: ("Get-builtin", ['int8']),
 
+    0x64: ("Dup", ['int8']),
+    0x65: ("Pop", ['int8']),
     0x66: ("Call-getter", ['sym8']), # 'the'
+    0x67: ("Call-getter-method", ['sym8']),
     0x70: ("Get-special-field", ['sym8']),
 
     0x61: ("Get-field", ['sym8']),
@@ -174,13 +187,20 @@ OPCODE_SPEC = {
 
      # 16-versions of (opcode-0x40):
     0x85: ("Push-symbol", ['sym16']),
+    0x89: ("Push-global", ['sym16']),
+    0x8a: ("Push-property", ['sym16']),
+    0x8f: ("Store-global", ['sym16']),
+    0x90: ("Store-property", ['sym16']),
+    0x94: ("Jump-relative-back", ['relb16']),
+    0x93: ("Jump-relative", ['rel16']),
     0x97: ("Call", ['sym16']),
     0x9f: ("Call-getter", ['sym16']), # 'the'
+    0xa1: ("Get-field", ['sym16']),
     0xa6: ("Call-getter-B", ['sym16']), # 'the'
     0xa7: ("Call-special", ['sym16']),
     0xae: ("Push-int", ['int16']),
 
-    0x95: ("Jump-relative-if", ['int16']),
+    0x95: ("Jump-relative-unless", ['rel16']),
 }
 
 def parse_lscr_code(blob, names, strings, names_of_locals):
@@ -205,17 +225,28 @@ def parse_lscr_code(blob, names, strings, names_of_locals):
                 elif a=='locvar8':
                     [arg] = buf.unpack('B')
                     arg = (arg,names_of_locals[arg])
+                elif a=='rel8':
+                    [arg] = buf.unpack('B')
+                    arg = (arg, codepos+arg)
                 elif a=='int16':
                     [arg] = buf.unpack('>h')
                 elif a=='sym16':
                     [arg] = buf.unpack('>H')
                     arg = names[arg]
+                elif a=='rel16':
+                    [arg] = buf.unpack('>H')
+                    arg = (arg, codepos+arg)
+                elif a=='relb16':
+                    [arg] = buf.unpack('>H')
+                    arg = (arg, codepos-arg)
                 args.append(arg)
         # TODO: Remove these fallbacks, eventually:
         elif opcode >= 0x80:
+            opcode = ("UNKNOWN-OPCODE",opcode)
             [arg] = buf.unpack('>H')
             args = [arg]
         else:
+            opcode = ("UNKNOWN-OPCODE",opcode)
             [arg] = buf.unpack('B')
             args = [arg]
         print "DB|    code: %s" % ((codepos,opcode,args),)
