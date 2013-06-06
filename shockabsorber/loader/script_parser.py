@@ -160,47 +160,39 @@ OPCODE_SPEC = {
 
     0x21: ("Push-something ('into')", []),
 
-    0x41: ("Push-int", ['int8']),
+    # Some instructions exist in an 8-bit and a 16-bit version.
+    # Usually, the difference between the two opcodes is 0x40.
+
+    0x41: ("Push-int", ['int8']),       0xae: ("Push-int", ['int16']),
     0x42: ("Set-arg-count-A", ['int8']),
     0x43: ("Set-arg-count-B", ['int8']),
     0x44: ("Push-string", ['str8']),
-    0x45: ("Push-symbol", ['sym8']),
-    0x49: ("Push-global", ['sym8']),
-    0x4a: ("Push-property", ['sym8']),
+    0x45: ("Push-symbol", ['sym8']),    0x85: ("Push-symbol", ['sym16']),
+    0x49: ("Push-global", ['sym8']),    0x89: ("Push-global", ['sym16']),
+    0x4a: ("Push-property", ['sym8']),  0x8a: ("Push-property", ['sym16']),
     0x4b: ("Push-parameter", ['locvar8']),
+                                        0x8f: ("Store-global", ['sym16']),
     0x4c: ("Push-local", ['int8']), # ~> locvar8
 
-    0x50: ("Store-property", ['sym8']),
+    0x50: ("Store-property", ['sym8']), 0x90: ("Store-property", ['sym16']),
     0x52: ("Store-local", ['int8']), # ~> locvar8
+                                        0x93: ("Jump-relative", ['rel16']),
+                                        0x94: ("Jump-relative-back", ['relb16']),
+                                        0x95: ("Jump-relative-unless", ['rel16']),
     0x56: ("Call-local", ['int8']),
-    0x57: ("Call", ['sym8']),
-    0x5c: ("Get-builtin", ['int8']),
+    0x57: ("Call", ['sym8']),           0x97: ("Call", ['sym16']),
+    0x5c: ("Get-unnamed-builtin", ['int8']),
+                                        0x9f: ("Get-the", ['sym16']),
+
+    0x61: ("Get-field", ['sym8']),      0xa1: ("Get-field", ['sym16']),
+    0x62: ("Put-field", ['sym8']),
 
     0x64: ("Dup", ['int8']),
     0x65: ("Pop", ['int8']),
-    0x66: ("Call-getter", ['sym8']), # 'the'
-    0x67: ("Call-getter-method", ['sym8']),
+    0x66: ("Call-system-getter", ['sym8']), 0xa6: ("Call-system-getter", ['sym16']), # 'the'
+    0x67: ("Call-method", ['sym8']),    0xa7: ("Call-method", ['sym16']),
+
     0x70: ("Get-special-field", ['sym8']),
-
-    0x61: ("Get-field", ['sym8']),
-    0x62: ("Put-field", ['sym8']),
-
-     # 16-versions of (opcode-0x40):
-    0x85: ("Push-symbol", ['sym16']),
-    0x89: ("Push-global", ['sym16']),
-    0x8a: ("Push-property", ['sym16']),
-    0x8f: ("Store-global", ['sym16']),
-    0x90: ("Store-property", ['sym16']),
-    0x94: ("Jump-relative-back", ['relb16']),
-    0x93: ("Jump-relative", ['rel16']),
-    0x97: ("Call", ['sym16']),
-    0x9f: ("Call-getter", ['sym16']), # 'the'
-    0xa1: ("Get-field", ['sym16']),
-    0xa6: ("Call-getter-B", ['sym16']), # 'the'
-    0xa7: ("Call-special", ['sym16']),
-    0xae: ("Push-int", ['int16']),
-
-    0x95: ("Jump-relative-unless", ['rel16']),
 }
 
 def parse_lscr_code(blob, names, strings, names_of_locals):
