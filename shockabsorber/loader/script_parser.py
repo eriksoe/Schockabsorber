@@ -150,13 +150,22 @@ OPCODE_SPEC = {
     0x05: ("Add", []),
     0x06: ("Subtract", []),
     0x07: ("Divide", []),
+    0x09: ("Negate", []),
+    0x0a: ("Concat-strings", []),
+    #0x0b: string,string -> ?
+    0x0c: ("Less-than?", []),
     0x0e: ("Not-equals", []),
     0x0d: ("Less-than-or-equals", []),
     0x0f: ("Equals", []),
 
     0x10: ("Greater-than", []),
+    0x11: ("Greater-than-or-equals", []),
+    0x12: ("AND(OR)?", []),
+    0x13: ("OR(AND)?", []),
+    0x14: ("NOT?", []),
     0x15: ("String-contains", []),
     0x1e: ("Construct-linear-array", []),
+    0x1f: ("Construct-assoc-array", []),
 
     0x21: ("Push-something ('into')", []),
 
@@ -171,28 +180,36 @@ OPCODE_SPEC = {
     0x49: ("Push-global", ['sym8']),    0x89: ("Push-global", ['sym16']),
     0x4a: ("Push-property", ['sym8']),  0x8a: ("Push-property", ['sym16']),
     0x4b: ("Push-parameter", ['locvar8']),
-                                        0x8f: ("Store-global", ['sym16']),
     0x4c: ("Push-local", ['int8']), # ~> locvar8
 
+    0x4f: ("Store-global", ['sym8']),   0x8f: ("Store-global", ['sym16']),
+
     0x50: ("Store-property", ['sym8']), 0x90: ("Store-property", ['sym16']),
+    0x51: ("Store-parameter", ['locvar8']),
     0x52: ("Store-local", ['int8']), # ~> locvar8
+
                                         0x93: ("Jump-relative", ['rel16']),
-                                        0x94: ("Jump-relative-back", ['relb16']),
+    0x54: ("Jump-relative-back", ['relb8']), 0x94: ("Jump-relative-back", ['relb16']),
                                         0x95: ("Jump-relative-unless", ['rel16']),
+
     0x56: ("Call-local", ['int8']),
     0x57: ("Call", ['sym8']),           0x97: ("Call", ['sym16']),
     0x5c: ("Get-unnamed-builtin", ['int8']),
-                                        0x9f: ("Get-the", ['sym16']),
+    0x5f: ("Get-the", ['sym8']),        0x9f: ("Get-the", ['sym16']),
 
+    0x60: ("Store-system-property?", ['sym8']),
     0x61: ("Get-field", ['sym8']),      0xa1: ("Get-field", ['sym16']),
-    0x62: ("Put-field", ['sym8']),
+    0x62: ("Put-field", ['sym8']),      0xa2: ("Put-field", ['sym16']),
 
     0x64: ("Dup", ['int8']),
     0x65: ("Pop", ['int8']),
     0x66: ("Call-system-getter", ['sym8']), 0xa6: ("Call-system-getter", ['sym16']), # 'the'
     0x67: ("Call-method", ['sym8']),    0xa7: ("Call-method", ['sym16']),
+    #0x6d: () -> number
 
-    0x70: ("Get-special-field", ['sym8']),
+    0x70: ("Get-special-field", ['sym8']), 0xb0: ("Get-special-field", ['sym16']),
+    0xef: ("Push-int-32?", ['int32']),
+    0xf1: ("Push-float", ['float32']),
 }
 
 def parse_lscr_code(blob, names, strings, names_of_locals):
@@ -220,6 +237,9 @@ def parse_lscr_code(blob, names, strings, names_of_locals):
                 elif a=='rel8':
                     [arg] = buf.unpack('B')
                     arg = (arg, codepos+arg)
+                elif a=='relb8':
+                    [arg] = buf.unpack('B')
+                    arg = (arg, codepos-arg)
                 elif a=='int16':
                     [arg] = buf.unpack('>h')
                 elif a=='sym16':
@@ -231,16 +251,20 @@ def parse_lscr_code(blob, names, strings, names_of_locals):
                 elif a=='relb16':
                     [arg] = buf.unpack('>H')
                     arg = (arg, codepos-arg)
+                elif a=='int32':
+                    [arg] = buf.unpack('>i')
+                elif a=='float32':
+                    [arg] = buf.unpack('>f')
+                elif a=='float64':
+                    [arg] = buf.unpack('>F')
                 args.append(arg)
         # TODO: Remove these fallbacks, eventually:
         elif opcode >= 0x80:
             opcode = ("UNKNOWN-OPCODE",opcode)
-            [arg] = buf.unpack('>H')
-            args = [arg]
+            args = []
         else:
             opcode = ("UNKNOWN-OPCODE",opcode)
-            [arg] = buf.unpack('B')
-            args = [arg]
+            args = []
         print "DB|    code: %s" % ((codepos,opcode,args),)
         res.append((codepos,opcode,args))
     return res
