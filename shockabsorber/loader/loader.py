@@ -228,10 +228,10 @@ def create_cast_table(mmap, loader_context):
             continue
         # Read the media:
         media_section_id = e["section_id"]
-        if not (media_section_id in mmap):
-            print "DB| cast media unresolved: %s->%s (tag=%s)" % (cast_id, media_section_id, tag)
-            continue # Why is this?
         media_section_e = mmap[media_section_id]
+        if media_section_e == None:
+            print "DB| cast media unresolved: %s->%s (tag=%s)" % (cast_id, media_section_id, tag)
+            continue # Why is this? External media?
         media_section = media_section_e.bytes()
         media = Media.parse(media_section_id, tag, media_section)
 
