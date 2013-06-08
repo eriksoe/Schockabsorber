@@ -50,6 +50,9 @@ class SeqBuffer:  #------------------------------
         self.offset += len
         return bytes
 
+    def tell(self):
+        return self.offset
+
     def seek(self,new_offset):
         self.offset = new_offset
 

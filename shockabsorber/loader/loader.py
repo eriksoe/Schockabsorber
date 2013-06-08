@@ -185,6 +185,7 @@ def load_file(filename):
         #     if e.tag=="Lnam": print "DB| section: %s: <%s>" % (e.tag, LnamSection.parse(e.bytes()))
         #     if e.tag=="Lscr": print "DB| section: %s: <%s>" % (e.tag, e.bytes())
 
+        cast_lib_table = parse_cast_lib_section(sections_map, loader_context)
         cast_table = create_cast_table(sections_map, loader_context)
         script_ctx = script_parser.create_script_context(sections_map, loader_context)
 
@@ -231,6 +232,7 @@ def create_cast_table(mmap, loader_context):
         media_section_e = mmap[media_section_id]
         if media_section_e == None:
             print "DB| cast media unresolved: %s->%s (tag=%s)" % (cast_id, media_section_id, tag)
+            cast_member.add_media(tag, None)
             continue # Why is this? External media?
         media_section = media_section_e.bytes()
         media = Media.parse(media_section_id, tag, media_section)
@@ -243,3 +245,51 @@ def create_cast_table(mmap, loader_context):
         cast_member.add_media(tag, media)
 
     return cast_table
+
+def parse_cast_lib_section(mmap, loader_context):
+    # Obtain 'MCsL' section:
+    mcsl_e = mmap.entry_by_tag("MCsL")
+    if mcsl_e == None: return None
+    blob = mcsl_e.bytes()
+
+    # Read header:
+    buf = SeqBuffer(blob)
+    [v1,nElems,ofsPerElem,nOffsets,v5] = buf.unpack('>iiHii')
+    print "DB| Cast lib section header: nElems=%d, nOffsets=%d, ofsPerElem=%d, misc=%s" % (nElems, nOffsets, ofsPerElem, [v1,v5])
+
+    # Read offset table:
+    offsets = []
+    for i in range(nOffsets):
+        [offset] = buf.unpack('>i')
+        offsets.append(offset)
+    base = buf.tell()
+    #print "DB| Cast lib section: offsets=%s" % offsets
+
+    offnr = 0
+    table = []
+    for enr in range(nElems):
+        entry = []
+        for i in range(ofsPerElem):
+            subblob = buf.buf[base + offsets[offnr]:base + offsets[offnr+1]]
+            offnr += 1
+            #print "DB|   i=%d subblob=<%s>" % (i,subblob)
+            buf2 = SeqBuffer(subblob)
+            if i==0:
+                item = buf2.unpackString8()
+            elif i==1:
+                if buf2.bytes_left()>0:
+                    item = buf2.unpackString8()
+                else:
+                    item = None
+            elif i==2:
+                [item] = buf2.unpack('>h')
+            elif i==3:
+                [w1,w2,w3,w4] = buf2.unpack('>hhhh')
+                item = (w1,w2,w3,w4)
+            else:
+                item = subblob
+            entry.append(item)
+        print "DB| Cast lib table entry: %s" % entry
+        table.append(entry)
+
+    return table
