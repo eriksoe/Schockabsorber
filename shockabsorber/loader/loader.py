@@ -83,6 +83,8 @@ class CastMember: #------------------------------
     def parse_castdata(type, buf):
         if type==1:
             return ImageCastType.parse(buf)
+        elif type==11:
+            return ScriptCastType.parse(buf)
         else:
             return None
 
@@ -130,6 +132,39 @@ class ImageCastType(CastType): #--------------------
                              (anchor_x, anchor_y),
                              bits_per_pixel,
                              misc)
+
+#--------------------------------------------------
+
+class ScriptCastType(CastType): #--------------------
+    def __init__(self, id, name, misc):
+        self.id = id
+        self.name = name
+        self.misc = misc
+        print "DB| ScriptCastType: id=#%d name=\"%s\" misc=%s" % (id, name, misc)
+
+    def repr_extra(self):
+        return " id=#%d name=\"%s\" misc=%s" % (self.id, self.name, self.misc)
+
+    @staticmethod
+    def parse(buf):
+        sz = buf.bytes_left()
+        [length_minus_10,v2,v3,v4,v5,v6,script_id,nElems] = buf.unpack('>7iH')
+        elems = []
+        for i in range(nElems):
+            [tmp] = buf.unpack('>i')
+            elems.append(tmp)
+        [nameLength] = buf.unpack('>i')
+
+        if nameLength>0:
+            blob2 = buf.readBytes(nameLength)
+            buf2 = SeqBuffer(blob2)
+            name = buf2.unpackString8()
+        else:
+            name = None
+
+        [v30] = buf.unpack('>H')
+        misc = [[v2,v3,v4,v5,v6], elems, [v30]]
+        return ScriptCastType(script_id, name, misc)
 
 #--------------------------------------------------
 
