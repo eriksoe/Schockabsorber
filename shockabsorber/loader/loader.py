@@ -79,7 +79,7 @@ class CastMember: #------------------------------
         [type,common_length,v2] = buf.unpack('>3i')
         common_blob = buf.readBytes(common_length)
         buf2 = SeqBuffer(common_blob)
-        [v3,v4,v5,v6,script_id,nElems] = buf2.unpack('>5iH')
+        [v3,v4,v5,v6,cast_id,nElems] = buf2.unpack('>5iH')
         offsets = []
         for i in range(nElems+1):
             [tmp] = buf2.unpack('>i')
@@ -98,22 +98,19 @@ class CastMember: #------------------------------
             name = None
 
         print "DB| Cast-member common: name=\"%s\"  attrs=%s  misc=%s" % (
-            name, attrs, [v2,v3,v4,v5,v6])
+            name, attrs, [v2,v3,v4,v5,v6, cast_id])
         noncommon = buf.peek_bytes_left()
-        #print "DB| non-common bytes 2 (len %d): <%s>" % (len(noncommon), noncommon)
 
-        buf.seek(4)
-
-        castdata = CastMember.parse_castdata(type, buf)
+        castdata = CastMember.parse_castdata(type, cast_id, SeqBuffer(noncommon), attrs)
         res = CastMember(snr,type, name, attrs, castdata)
         return res
 
     @staticmethod
-    def parse_castdata(type, buf):
+    def parse_castdata(type, cast_id, buf, attrs):
         if type==1:
             return ImageCastType.parse(buf)
         elif type==11:
-            return ScriptCastType.parse(buf)
+            return ScriptCastType.parse(buf, cast_id)
         else:
             return None
 
@@ -124,8 +121,7 @@ class CastType: #--------------------
     def repr_extra(self): return ""
 
 class ImageCastType(CastType): #--------------------
-    def __init__(self, name, dims, total_dims, anchor, bpp, misc):
-        self.name = name
+    def __init__(self, dims, total_dims, anchor, bpp, misc):
         self.dims = dims
         self.total_dims = total_dims
         self.anchor = anchor
@@ -134,29 +130,20 @@ class ImageCastType(CastType): #--------------------
         self.misc = misc
 
     def repr_extra(self):
-        return " name=\"%s\" dims=%s anchor=%s bpp=%d misc=%s" % (
-            self.name, self.dims, self.anchor, self.bpp, self.misc)
+        return " dims=%s anchor=%s bpp=%d misc=%s" % (
+            self.dims, self.anchor, self.bpp, self.misc)
 
     @staticmethod
     def parse(buf):
-        [v1,v2,v3,v4,v5,v6,v7,v7b, nElems] = buf.unpack('>6iHHH')
-        dims_offset = v1 + 8
-        for i in range(nElems):
-            (_tmp,) = buf.unpack('>i')
-        [v8] = buf.unpack('>i')
-        name = buf.unpackString8()
-        buf.seek(dims_offset)
-        [v9,v10,v11, height,width,v12,v13,v14, anchor_x,anchor_y,
+        [v10,v11, height,width,v12,v13,v14, anchor_x,anchor_y,
          v15,bits_per_pixel,v17
-        ] = buf.unpack('>hIi HH ihh HH bbi')
+        ] = buf.unpack('>Hi HH ihh HH bbi')
         total_width = v10 & 0x7FFF
         v10 = "0x%x" % v10
         v12 = "0x%x" % v12
         print "DB| ImageCastType.parse: ILE=%s %s" % (buf.is_little_endian, [(width, height), (total_width,height), bits_per_pixel])
-        misc = ((v1,v2,v3,v4,v5,v6,v7,v7b,v8),
-                (v9,v10,v11), (v12,v13,v14), (v15,v17))
-        return ImageCastType(name,
-                             (width, height),
+        misc = ((v10,v11), (v12,v13,v14), (v15,v17))
+        return ImageCastType((width, height),
                              (total_width,height),
                              (anchor_x, anchor_y),
                              bits_per_pixel,
@@ -165,35 +152,19 @@ class ImageCastType(CastType): #--------------------
 #--------------------------------------------------
 
 class ScriptCastType(CastType): #--------------------
-    def __init__(self, id, name, misc):
+    def __init__(self, id, misc):
         self.id = id
-        self.name = name
         self.misc = misc
-        print "DB| ScriptCastType: id=#%d name=\"%s\" misc=%s" % (id, name, misc)
+        print "DB| ScriptCastType: id=#%d misc=%s" % (id, misc)
 
     def repr_extra(self):
         return " id=#%d name=\"%s\" misc=%s" % (self.id, self.name, self.misc)
 
     @staticmethod
-    def parse(buf):
-        sz = buf.bytes_left()
-        [length_minus_10,v2,v3,v4,v5,v6,script_id,nElems] = buf.unpack('>7iH')
-        elems = []
-        for i in range(nElems):
-            [tmp] = buf.unpack('>i')
-            elems.append(tmp)
-        [nameLength] = buf.unpack('>i')
-
-        if nameLength>0:
-            blob2 = buf.readBytes(nameLength)
-            buf2 = SeqBuffer(blob2)
-            name = buf2.unpackString8()
-        else:
-            name = None
-
+    def parse(buf, script_id):
         [v30] = buf.unpack('>H')
-        misc = [[v2,v3,v4,v5,v6], elems, [v30]]
-        return ScriptCastType(script_id, name, misc)
+        misc = [v30]
+        return ScriptCastType(script_id, misc)
 
 #--------------------------------------------------
 
