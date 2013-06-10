@@ -13,7 +13,11 @@ class SectionMapImpl(SectionMap):  #------------------------------
             entries_by_nr[e.nr] = e
         self.entries_by_nr = entries_by_nr
 
+    def __contains__(self,nr):
+        return nr in self.entries_by_nr
+
     def __getitem__(self,nr):
+        if not (nr in self.entries_by_nr): return None
         return self.entries_by_nr[nr]
 #--------------------------------------------------
 

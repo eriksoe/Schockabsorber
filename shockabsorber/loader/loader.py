@@ -74,7 +74,34 @@ class CastMember: #------------------------------
     @staticmethod
     def parse(blob,snr, loader_context):
         buf = SeqBuffer(blob)
-        (type,) = buf.unpack('>i')
+        [type,common_length,v2] = buf.unpack('>3i')
+        common_blob = buf.readBytes(common_length)
+        buf2 = SeqBuffer(common_blob)
+        [v3,v4,v5,v6,script_id,nElems] = buf2.unpack('>5iH')
+        offsets = []
+        for i in range(nElems+1):
+            [tmp] = buf2.unpack('>i')
+            offsets.append(tmp)
+
+        blob_after_table=buf2.peek_bytes_left()
+        attrs = []
+        for i in range(len(offsets)-1):
+            attr = blob_after_table[offsets[i]:offsets[i+1]]
+            print "DB|   Cast member attr #%d: <%s>" % (i, attr)
+            attrs.append(attr)
+
+        if len(attrs)>=2 and len(attrs[1])>0:
+            name = SeqBuffer(attrs[1]).unpackString8()
+        else:
+            name = None
+
+        print "DB| Cast-member common: name=\"%s\"  attrs=%s  misc=%s" % (
+            name, attrs, [v2,v3,v4,v5,v6])
+        noncommon = buf.peek_bytes_left()
+        #print "DB| non-common bytes 2 (len %d): <%s>" % (len(noncommon), noncommon)
+
+        buf.seek(4)
+
         castdata = CastMember.parse_castdata(type, buf)
         res = CastMember(snr,type, castdata)
         return res
