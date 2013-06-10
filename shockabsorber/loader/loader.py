@@ -58,15 +58,17 @@ class CastTableSection: #------------------------------
 #--------------------------------------------------
 
 class CastMember: #------------------------------
-    def __init__(self, section_nr, type, castdata):
+    def __init__(self, section_nr, type, name, attrs, castdata):
         self.media = {}
         self.type = type
+        self.name = name
+        self.attrs = attrs
         self.section_nr = section_nr
         self.castdata = castdata
 
     def __repr__(self):
-        return "<CastMember (@%d) type=%d meta=%s media=%s>" % \
-            (self.section_nr, self.type, self.castdata, self.media)
+        return "<CastMember (@%d) type=%d name=\"%s\" attrs=%s meta=%s media=%s>" % \
+            (self.section_nr, self.type, self.name, self.attrs, self.castdata, self.media)
 
     def add_media(self,tag,data):
         self.media[tag] = data
@@ -103,7 +105,7 @@ class CastMember: #------------------------------
         buf.seek(4)
 
         castdata = CastMember.parse_castdata(type, buf)
-        res = CastMember(snr,type, castdata)
+        res = CastMember(snr,type, name, attrs, castdata)
         return res
 
     @staticmethod
