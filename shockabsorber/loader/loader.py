@@ -137,7 +137,7 @@ class ImageCastType(CastType): #--------------------
     def parse(buf):
         [v10,v11, height,width,v12,v13,v14, anchor_x,anchor_y,
          v15,bits_per_pixel,v17
-        ] = buf.unpack('>Hi HH ihh HH bbi')
+        ] = buf.unpack('>Hi HH ihh hh bbi')
         total_width = v10 & 0x7FFF
         v10 = "0x%x" % v10
         v12 = "0x%x" % v12
