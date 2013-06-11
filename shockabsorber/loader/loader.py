@@ -112,7 +112,7 @@ class CastMember: #------------------------------
         elif type==11:
             return ScriptCastType.parse(buf, cast_id)
         else:
-            return None
+            return ("Unknown cast type", cast_id, attrs, buf.peek_bytes_left())
 
 class CastType: #--------------------
     def __repr__(self):
@@ -158,7 +158,7 @@ class ScriptCastType(CastType): #--------------------
         print "DB| ScriptCastType: id=#%d misc=%s" % (id, misc)
 
     def repr_extra(self):
-        return " id=#%d name=\"%s\" misc=%s" % (self.id, self.name, self.misc)
+        return " id=#%d misc=%s" % (self.id, self.misc)
 
     @staticmethod
     def parse(buf, script_id):
@@ -235,7 +235,12 @@ def create_cast_table(mmap, loader_context):
     cast_e = mmap.entry_by_tag("CAS*")
     cast_list_section = CastTableSection.parse(cast_e.bytes(), loader_context)
     keys_section      = KeysSection.parse(keys_e.bytes(), loader_context)
-    print "DB| Cast list: %s" % cast_list_section
+    print "DB| Cast list (size %d): %s" % (len(cast_list_section.entries), cast_list_section)
+
+    all_cast_member_sections = []
+    for idx,e in mmap.kv_iter():
+        if e.tag=="CASt":
+            all_cast_member_sections.append(idx)
 
     # Create cast table with basic cast-member info:
     def section_nr_to_cast_member(nr):
@@ -243,7 +248,7 @@ def create_cast_table(mmap, loader_context):
         cast_section = mmap[nr].bytes()
         res = CastMember.parse(cast_section,nr, loader_context)
         return res
-    cast_table = map(section_nr_to_cast_member, cast_list_section.entries)
+    cast_table = map(section_nr_to_cast_member, all_cast_member_sections)
 
     # Calculate section_nr -> cast-table mapping:
     aux_map = {}

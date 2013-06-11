@@ -19,6 +19,9 @@ class SectionMap: #------------------------------
             if e.tag == tag:
                 return e
         return None
+
+    def kv_iter(self):
+        return enumerate(self.entries)
 #--------------------------------------------------
 
 class Section:  #------------------------------

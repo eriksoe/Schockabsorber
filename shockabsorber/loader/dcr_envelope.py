@@ -19,6 +19,9 @@ class SectionMapImpl(SectionMap):  #------------------------------
     def __getitem__(self,nr):
         if not (nr in self.entries_by_nr): return None
         return self.entries_by_nr[nr]
+
+    def kv_iter(self):
+        return self.entries_by_nr.iteritems()
 #--------------------------------------------------
 
 class CommonSectionImpl(Section):  #------------------------------
