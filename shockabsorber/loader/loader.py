@@ -223,6 +223,7 @@ def load_file(filename):
         cast_lib_table = parse_cast_lib_section(sections_map, loader_context)
         cast_table = create_cast_table(sections_map, loader_context)
         script_ctx = script_parser.create_script_context(sections_map, loader_context)
+        frame_labels = parse_frame_label_section(sections_map, loader_context)
 
         #print "==== cast_table: ===="
         #for cm in cast_table: print "  %s" % cm
@@ -333,3 +334,26 @@ def parse_cast_lib_section(mmap, loader_context):
         table.append(entry)
 
     return table
+
+def parse_frame_label_section(sections_map, loader_context):
+    # Obtain section:
+    vwlb_e = sections_map.entry_by_tag("VWLB")
+    if vwlb_e == None: return None
+
+    buf = SeqBuffer(vwlb_e.bytes())
+    [nElems] = buf.unpack('>H')
+    offset_table = []
+    for i in range(nElems+1):
+        [frame_nr, offset] = buf.unpack('>HH')
+        offset_table.append((frame_nr, offset))
+    base_pos = buf.tell()
+
+    label_table = []
+    for i in range(nElems):
+        (frame_nr,offset1) = offset_table[i]
+        (_       ,offset2) = offset_table[i+1]
+        label = buf.pread_from_to(base_pos+offset1, base_pos+offset2)
+        label_table.append((frame_nr, label))
+
+    print "DB| Frame labels: %s" % label_table
+    return label_table
