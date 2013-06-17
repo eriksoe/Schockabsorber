@@ -27,11 +27,12 @@ class KeysSection: #------------------------------
     @staticmethod
     def parse(blob, loader_context):
         buf = SeqBuffer(blob, loader_context.is_little_endian)
-        [v1,v2,nElems,v3] = buf.unpack('>HHii')
-        print("KEY* header: %s" % [v1,v2,nElems,v3])
+        [v1,v2,nElems,nValid] = buf.unpack('>HHii', '<HHii')
+        print("KEY* header: %s" % [v1,v2,nElems,nValid])
+        # v1 = table start offset, v2 = table entry size?
 
         res = KeysSection()
-        while not buf.at_eof():
+        for i in range(nValid):
             [section_id, cast_id] = buf.unpack('>ii', '<ii')
             tag = buf.readTag()
             res.entries.append(dict(section_id=section_id,
