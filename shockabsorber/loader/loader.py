@@ -4,7 +4,8 @@
 # Individual envelope formats are handled elsewhere (dxr_envelope etc.).
 
 import struct
-from shockabsorber.model.sections import Section, SectionMap
+from shockabsorber.model.sections import Section, SectionMap, AssociationTable
+from shockabsorber.model.cast import CastLibrary, CastLibraryTable
 from shockabsorber.loader.util import SeqBuffer, rev
 from . import script_parser
 import shockabsorber.loader.dxr_envelope
@@ -17,45 +18,33 @@ class LoaderContext: #------------------------------
         self.is_little_endian = is_little_endian
 #--------------------------------------------------
 
-class KeysSection: #------------------------------
-    def __init__(self):
-        self.entries = []
+def parse_assoc_table(blob, loader_context):
+    """ Takes a 'KEY*' section and returns an AssociationTable. """
+    buf = SeqBuffer(blob, loader_context.is_little_endian)
+    [v1,v2,nElems,nValid] = buf.unpack('>HHii', '<HHii')
+    print("KEY* header: %s" % [v1,v2,nElems,nValid])
+    # v1 = table start offset, v2 = table entry size?
 
-    def __repr__(self):
-        return repr(self.entries)
+    atable = AssociationTable()
+    for i in range(nValid):
+        [owned_section_id, composite_id] = buf.unpack('>ii', '<ii')
+        tag = buf.readTag()
+        castlib_assoc_id = composite_id >> 16
+        owner_section_id = composite_id & 0xFFFF
+        print "DB|   KEY* entry #%d: %s" % (i, [tag, owned_section_id, castlib_assoc_id, owner_section_id])
+        if owner_section_id == 1024:
+            atable.add_library_section(castlib_assoc_id, owned_section_id, tag)
+        else:
+            atable.add_cast_media(owner_section_id, owned_section_id, tag)
+    return atable
 
-    @staticmethod
-    def parse(blob, loader_context):
-        buf = SeqBuffer(blob, loader_context.is_little_endian)
-        [v1,v2,nElems,nValid] = buf.unpack('>HHii', '<HHii')
-        print("KEY* header: %s" % [v1,v2,nElems,nValid])
-        # v1 = table start offset, v2 = table entry size?
-
-        res = KeysSection()
-        for i in range(nValid):
-            [section_id, cast_id] = buf.unpack('>ii', '<ii')
-            tag = buf.readTag()
-            res.entries.append(dict(section_id=section_id,
-                                    cast_id=cast_id,
-                                    tag=tag))
-        return res
-#--------------------------------------------------
-
-class CastTableSection: #------------------------------
-    def __init__(self):
-        self.entries = []
-
-    def __repr__(self):
-        return repr(self.entries)
-
-    @staticmethod
-    def parse(blob, loader_context):
-        buf = SeqBuffer(blob)
-        res = CastTableSection()
-        while not buf.at_eof():
-            (item,) = buf.unpack('>i')
-            res.entries.append(item)
-        return res
+def parse_cast_table_section(blob, loader_context):
+    buf = SeqBuffer(blob)
+    res = []
+    while not buf.at_eof():
+        (item,) = buf.unpack('>i')
+        res.append(item)
+    return res
 #--------------------------------------------------
 
 class CastMember: #------------------------------
@@ -217,84 +206,68 @@ def load_file(filename):
         else:
             raise Exception("Bad file type")
 
-        # for e in sections_map.entries:
-        #     if e.tag=="Lnam": print "DB| section: %s: <%s>" % (e.tag, LnamSection.parse(e.bytes()))
-        #     if e.tag=="Lscr": print "DB| section: %s: <%s>" % (e.tag, e.bytes())
+        (castlibs, assoc_table) = read_singletons(sections_map, loader_context)
+        populate_cast_libraries(castlibs, assoc_table, sections_map, loader_context)
 
-        cast_lib_table = parse_cast_lib_section(sections_map, loader_context)
-        cast_table = create_cast_table(sections_map, loader_context)
+        # for e in sections_map.entries:
+        #     tag = e.tag
+            # if tag=="STXT" or tag=="Sord" or tag=="XMED" or tag=="VWSC" or tag=="VWFI" or tag=="VWLB" or tag=="SCRF" or tag=="DRCF" or tag=="MCsL" or tag=="Cinf":
+            #     print "section bytes for %s (len=%d): <%s>" % (tag, len(e.bytes()), e.bytes())
+
         script_ctx = script_parser.create_script_context(sections_map, loader_context)
         frame_labels = parse_frame_label_section(sections_map, loader_context)
         score = parse_score_section(sections_map, loader_context)
 
-        #print "==== cast_table: ===="
-        #for cm in cast_table: print "  %s" % cm
         print "DB| script_ctx=%s" % (script_ctx,)
-        return (cast_table,script_ctx)
+        return (castlibs,script_ctx)
 
-def create_cast_table(mmap, loader_context):
-    # Read the relevant table sections:
-    keys_e = mmap.entry_by_tag("KEY*")
-    cast_e = mmap.entry_by_tag("CAS*")
-    cast_list_section = CastTableSection.parse(cast_e.bytes(), loader_context)
-    keys_section      = KeysSection.parse(keys_e.bytes(), loader_context)
-    print "DB| Cast list (size %d): %s" % (len(cast_list_section.entries), cast_list_section)
+def read_singletons(sections_map, loader_context):
+    mcsl_e = sections_map.entry_by_tag("MCsL")
+    castlib_table = (None if mcsl_e==None else
+                     parse_cast_lib_section(mcsl_e.bytes(), loader_context))
 
-    all_cast_member_sections = []
-    for idx,e in mmap.kv_iter():
-        if e.tag=="CASt":
-            all_cast_member_sections.append(idx)
+    keys_e = sections_map.entry_by_tag("KEY*")
+    assoc_table = parse_assoc_table(keys_e.bytes(), loader_context)
 
-    # Create cast table with basic cast-member info:
-    def section_nr_to_cast_member(nr):
-        if nr==0: return None
-        cast_section = mmap[nr].bytes()
-        res = CastMember.parse(cast_section,nr, loader_context)
-        return res
-    cast_table = map(section_nr_to_cast_member, all_cast_member_sections)
+    return (castlib_table, assoc_table)
 
-    # Calculate section_nr -> cast-table mapping:
-    aux_map = {}
-    for cm in cast_table:
-        if cm != None:
-            aux_map[cm.section_nr] = cm
+def populate_cast_libraries(castlibs, assoc_table, sections_map, loader_context):
+    for cl in castlibs.iter_by_nr():
+        # Read cast list:
+        assoc_id = cl.assoc_id
+        if assoc_id==0: continue
+        print "DB| populate_cast_libraries: sections: %s" % (assoc_table.get_library_sections(assoc_id),)
+        castlist_section_id = assoc_table.get_library_sections(cl.assoc_id).get("CAS*")
+        if castlist_section_id==None: continue
+        print "DB| populate_cast_libraries: CAS*-id=%d" % (castlist_section_id,)
+        castlist_e = sections_map[castlist_section_id]
 
-    # Add media info:
-    for e in keys_section.entries:
-        cast_id = e["cast_id"]
-        tag = e["tag"]
-        if cast_id==0:
-            continue
-        if not cast_id in aux_map:
-            print "No cast section %d (for media section %s)" % (cast_id,tag)
-            continue
-        if (cast_id & 1024)>0 or tag == "Thum" or tag == "ediM":
-            continue
-        # Read the media:
-        media_section_id = e["section_id"]
-        media_section_e = mmap[media_section_id]
-        if media_section_e == None:
-            print "DB| cast media unresolved: %s->%s (tag=%s)" % (cast_id, media_section_id, tag)
-            cast_member.add_media(tag, None)
-            continue # Why is this? External media?
+        cast_idx_table = parse_cast_table_section(castlist_e.bytes(), loader_context)
+        print "DB| populate_cast_libraries: idx_table=%s" % (cast_idx_table,)
+
+        def section_nr_to_cast_member(nr):
+            if nr==0: return None
+            cast_section = sections_map[nr].bytes()
+            castmember = CastMember.parse(cast_section,nr, loader_context)
+            populate_cast_member_media(castmember, cl.assoc_id, nr,
+                                       assoc_table, sections_map)
+            return castmember
+        cast_table = map(section_nr_to_cast_member, cast_idx_table)
+        print "DB| populate_cast_libraries: cast_table=%s" % (cast_table,)
+        cl.set_castmember_table(cast_table)
+
+def populate_cast_member_media(castmember, castlib_assoc_id, castmember_section_id, assoc_table, sections_map):
+    medias = assoc_table.get_cast_media(castmember_section_id)
+    print "DB| populate_cast_member_media: %d,%d -> %s" % (castlib_assoc_id,castmember_section_id,medias)
+    for tag,media_section_id in medias.iteritems():
+        media_section_e = sections_map[media_section_id]
+        if media_section_e == None: continue
+        # TODO: Load media more lazily.
         media_section = media_section_e.bytes()
         media = Media.parse(media_section_id, tag, media_section)
+        castmember.add_media(tag, media)
 
-        # Add it:
-        print "DB| adding media %s to cast_id %d" % (tag,cast_id)
-        #print "DB| media contents(#%d:%s)=<%s>" % (media_section_id,tag,media.data)
-        # Find the cast member to add media to:
-        cast_member = aux_map[cast_id]
-        cast_member.add_media(tag, media)
-
-    return cast_table
-
-def parse_cast_lib_section(mmap, loader_context):
-    # Obtain 'MCsL' section:
-    mcsl_e = mmap.entry_by_tag("MCsL")
-    if mcsl_e == None: return None
-    blob = mcsl_e.bytes()
-
+def parse_cast_lib_section(blob, loader_context):
     # Read header:
     buf = SeqBuffer(blob)
     [v1,nElems,ofsPerElem,nOffsets,v5] = buf.unpack('>iiHii')
@@ -332,10 +305,11 @@ def parse_cast_lib_section(mmap, loader_context):
             else:
                 item = subblob
             entry.append(item)
-        print "DB| Cast lib table entry: %s" % entry
-        table.append(entry)
+        print "DB| Cast lib table entry #%d: %s" % (enr+1,entry)
+        [name, path, _zero, (low_idx,high_idx, assoc_id, self_idx)] = entry
+        table.append(CastLibrary(enr+1, name, path, assoc_id, (low_idx,high_idx), self_idx))
 
-    return table
+    return CastLibraryTable(table)
 
 def parse_frame_label_section(sections_map, loader_context):
     # Obtain section:

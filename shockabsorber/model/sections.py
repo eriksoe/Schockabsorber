@@ -42,3 +42,22 @@ class Section:  #------------------------------
         raise NotImplementedError()
 #--------------------------------------------------
 
+class AssociationTable: #------------------------------
+    def __init__(self):
+        self.cast_media_by_owner = {}
+        self.library_sections_by_owner = {}
+
+    def add_cast_media(self, castmember_section_id, media_id, tag):
+        self.cast_media_by_owner.setdefault(castmember_section_id, {})[tag] = media_id
+
+    def add_library_section(self, castlib_assoc_id, owned_id, tag):
+        self.library_sections_by_owner.setdefault(castlib_assoc_id, {})[tag] = owned_id
+
+    def get_cast_media(self, castmember_section_id):
+        return self.cast_media_by_owner.get(castmember_section_id, {})
+
+    def get_library_sections(self, castlib_assoc_id):
+        return self.library_sections_by_owner.get(castlib_assoc_id, {})
+#--------------------------------------------------
+
+
