@@ -56,6 +56,9 @@ class SeqBuffer:  #------------------------------
     def seek(self,new_offset):
         self.offset = new_offset
 
+    def pread_from_to(self, frm, to):
+        return self.buf[frm:to]
+
     def bytes_left(self):
         return len(self.buf) - self.offset
 
