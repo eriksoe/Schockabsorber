@@ -213,6 +213,16 @@ def load_file(filename):
         #     tag = e.tag
             # if tag=="STXT" or tag=="Sord" or tag=="XMED" or tag=="VWSC" or tag=="VWFI" or tag=="VWLB" or tag=="SCRF" or tag=="DRCF" or tag=="MCsL" or tag=="Cinf":
             #     print "section bytes for %s (len=%d): <%s>" % (tag, len(e.bytes()), e.bytes())
+        castorder_section_id = assoc_table.get_library_sections(0).get("Sord")
+        if castorder_section_id == None:
+            castidx_order = None
+        else:
+            castorder_e = sections_map[castorder_section_id]
+            castidx_order = parse_cast_order_section(castorder_e.bytes(), loader_context)
+            for i,k in enumerate(castidx_order):
+                (clnr, cmnr) = k
+                print "DB| Cast order #%d: %s -> %s" % (i, k, castlibs.by_nr[clnr].castmember_table[cmnr-1])
+
 
         script_ctx = script_parser.create_script_context(sections_map, loader_context)
         frame_labels = parse_frame_label_section(sections_map, loader_context)
@@ -223,7 +233,7 @@ def load_file(filename):
 
 def read_singletons(sections_map, loader_context):
     mcsl_e = sections_map.entry_by_tag("MCsL")
-    castlib_table = (None if mcsl_e==None else
+    castlib_table = (CastLibraryTable([CastLibrary(-1,None,None,0,None,1024)]) if mcsl_e==None else
                      parse_cast_lib_section(mcsl_e.bytes(), loader_context))
 
     keys_e = sections_map.entry_by_tag("KEY*")
@@ -235,7 +245,7 @@ def populate_cast_libraries(castlibs, assoc_table, sections_map, loader_context)
     for cl in castlibs.iter_by_nr():
         # Read cast list:
         assoc_id = cl.assoc_id
-        if assoc_id==0: continue
+        if assoc_id==0 and cl.name<>None: continue
         print "DB| populate_cast_libraries: sections: %s" % (assoc_table.get_library_sections(assoc_id),)
         castlist_section_id = assoc_table.get_library_sections(cl.assoc_id).get("CAS*")
         if castlist_section_id==None: continue
@@ -400,4 +410,16 @@ def parse_score_entry_nr1(blob):
     for i in range(count):
         [idx] = buf.unpack('>i')
         table.append(idx)
+    return table
+
+def parse_cast_order_section(blob, loader_context):
+    print "DB| parse_cast_order_section..."
+    buf = SeqBuffer(blob, loader_context)
+    [_zero1, _zero2, nElems, nElems2, v5] = buf.unpack('>5i')
+    print "DB| parse_cast_order_section: header: %s" % ([_zero1, _zero2, nElems, nElems2, v5],)
+    table = []
+    for i in range(nElems):
+        [castlib_nr, castmember_nr] = buf.unpack('>HH')
+        print "DB| parse_cast_order_section #%d: %s" % (i, (castlib_nr,castmember_nr))
+        table.append((castlib_nr,castmember_nr))
     return table
