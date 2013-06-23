@@ -367,6 +367,7 @@ def parse_score_section(sections_map, loader_context):
         return buf.pread_from_to(base + offsets[idx], base + offsets[idx+1])
 
     # Parse entry index list:
+    dummy = parse_score_entry_nr0(get_entry_bytes(0))
     entry_indexes = parse_score_entry_nr1(get_entry_bytes(1))
     print "DB| Occupied score entries (count=%d): %s" % (len(entry_indexes), entry_indexes)
 
@@ -399,6 +400,37 @@ def parse_score_section(sections_map, loader_context):
 
     #parse_score_entry_nr1(table[1])
 
+    return table
+
+def parse_score_entry_nr0(blob):
+    buf = SeqBuffer(blob)
+    [actualSize, c2, frameCount, c4, c5, c6, v7] = buf.unpack('>3i4h')
+    print "DB| Score root primary: header=%s" % [actualSize, c2, frameCount, c4, c5, c6, v7]
+    print "DB| Score root primary: extra=%s" % [c2, c4, c5, c6, v7]
+    print "DB | Score root <primary: residue=<%s>" % (buf.buf[actualSize:],)
+    buf = SeqBuffer(blob[buf.tell():actualSize])
+
+    maxOffset = 0
+    totItNr = 0
+    table = []
+    for frNr in range(1, frameCount+1):
+        frNr += 1
+        [frameDataLength] = buf.unpack('>H')
+        frBuf = SeqBuffer(buf.readBytes(frameDataLength-2))
+        print "DB| Score root framedata raw=<%s>" % frBuf.buf
+
+        frameData = []
+        itNr = 0
+        while not frBuf.at_eof():
+            itNr += 1; totItNr += 1
+            [itemLength,w2] = frBuf.unpack('>HH')
+            if w2 > maxOffset: maxOffset = w2
+            s = frBuf.readBytes(itemLength)
+            frameData.append((w2,s))
+            print "DB| Score framedata entry [%d][%d] (len %d): %d/0x%x, <%s>" % (frNr, itNr, itemLength, w2, w2, s)
+        table.append(frameData)
+    print "DB| Score framedata = %s" % table
+    print "DB| Score framedata: maxOffset = %d (%d*48) chNr=%d totItNr=%d" % (maxOffset, maxOffset // 48, frNr, totItNr)
     return table
 
 # Decode entry #1, which holds the list of used primary entries
