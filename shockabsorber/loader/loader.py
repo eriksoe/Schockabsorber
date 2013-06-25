@@ -6,6 +6,7 @@
 import struct
 from shockabsorber.model.sections import Section, SectionMap, AssociationTable
 from shockabsorber.model.cast import CastLibrary, CastLibraryTable
+from shockabsorber.model.movie import Movie
 from shockabsorber.loader.util import SeqBuffer, rev
 from . import script_parser
 from . import score_parser
@@ -185,52 +186,54 @@ class BITDMedia(Media): #------------------------------
         "TODO"
 #--------------------------------------------------
 
-
-def load_file(filename):
+def load_movie(filename):
     with open(filename) as f:
-        xheader = f.read(12)
-        [magic,size,tag] = struct.unpack('!4si4s', xheader)
-
-        is_little_endian = (magic == "XFIR")
-        if is_little_endian:
-            tag = rev(tag)
-            magic = rev(magic)
-        if magic != "RIFX":
-            raise Exception("Bad file type")
-
-        loader_context = LoaderContext(tag, is_little_endian)
-        print "DB| Loader context: %s / %s" % (tag, is_little_endian)
-        if (tag=="MV93"):
-            sections_map = shockabsorber.loader.dxr_envelope.create_section_map(f, loader_context)
-        elif (tag=="FGDM"):
-            sections_map = shockabsorber.loader.dcr_envelope.create_section_map(f, loader_context)
-        else:
-            raise Exception("Bad file type")
-
-        (castlibs, assoc_table) = read_singletons(sections_map, loader_context)
-        populate_cast_libraries(castlibs, assoc_table, sections_map, loader_context)
-
-        # for e in sections_map.entries:
-        #     tag = e.tag
-            # if tag=="STXT" or tag=="Sord" or tag=="XMED" or tag=="VWSC" or tag=="VWFI" or tag=="VWLB" or tag=="SCRF" or tag=="DRCF" or tag=="MCsL" or tag=="Cinf":
-            #     print "section bytes for %s (len=%d): <%s>" % (tag, len(e.bytes()), e.bytes())
-        castorder_section_id = assoc_table.get_library_sections(0).get("Sord")
-        if castorder_section_id == None:
-            castidx_order = None
-        else:
-            castorder_e = sections_map[castorder_section_id]
-            castidx_order = parse_cast_order_section(castorder_e.bytes(), loader_context)
-            for i,k in enumerate(castidx_order):
-                (clnr, cmnr) = k
-                print "DB| Cast order #%d: %s -> %s" % (i, k, castlibs.by_nr[clnr].castmember_table[cmnr-1])
-
+        (loader_context, sections_map, castlibs, castidx_order) = load_file(f)
 
         script_ctx = script_parser.create_script_context(sections_map, loader_context)
         frame_labels = score_parser.parse_frame_label_section(sections_map, loader_context)
         score = score_parser.parse_score_section(sections_map, loader_context)
 
-        print "DB| script_ctx=%s" % (script_ctx,)
-        return (castlibs,script_ctx)
+        return Movie(castlibs=castlibs, frames=score, scripts="TODO")
+
+def load_file(f):
+    xheader = f.read(12)
+    [magic,size,tag] = struct.unpack('!4si4s', xheader)
+
+    is_little_endian = (magic == "XFIR")
+    if is_little_endian:
+        tag = rev(tag)
+        magic = rev(magic)
+    if magic != "RIFX":
+        raise Exception("Bad file type")
+
+    loader_context = LoaderContext(tag, is_little_endian)
+    print "DB| Loader context: %s / %s" % (tag, is_little_endian)
+    if (tag=="MV93"):
+        sections_map = shockabsorber.loader.dxr_envelope.create_section_map(f, loader_context)
+    elif (tag=="FGDM"):
+        sections_map = shockabsorber.loader.dcr_envelope.create_section_map(f, loader_context)
+    else:
+        raise Exception("Bad file type")
+
+    (castlibs, assoc_table) = read_singletons(sections_map, loader_context)
+    populate_cast_libraries(castlibs, assoc_table, sections_map, loader_context)
+
+    # for e in sections_map.entries:
+    #     tag = e.tag
+    #     if tag=="STXT" or tag=="Sord" or tag=="XMED" or tag=="VWSC" or tag=="VWFI" or tag=="VWLB" or tag=="SCRF" or tag=="DRCF" or tag=="MCsL" or tag=="Cinf":
+    #         print "section bytes for %s (len=%d): <%s>" % (tag, len(e.bytes()), e.bytes())
+    castorder_section_id = assoc_table.get_library_sections(0).get("Sord")
+    if castorder_section_id == None:
+        castidx_order = None
+    else:
+        castorder_e = sections_map[castorder_section_id]
+        castidx_order = parse_cast_order_section(castorder_e.bytes(), loader_context)
+        for i,k in enumerate(castidx_order):
+            (clnr, cmnr) = k
+            print "DB| Cast order #%d: %s -> %s" % (i, k, castlibs.by_nr[clnr].castmember_table[cmnr-1])
+
+    return (loader_context, sections_map, castlibs, castidx_order)
 
 def read_singletons(sections_map, loader_context):
     mcsl_e = sections_map.entry_by_tag("MCsL")
