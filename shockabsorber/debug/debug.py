@@ -10,6 +10,16 @@ def print_castlibs(movie):
             if cm==None: continue
             print "Cast table entry #%d: %s" % (i,cm)
 
+def print_spritevectors(movie):
+    for fnr in range(1,1+movie.frames.frame_count()):
+        print "==== Frame #%d: ====" % fnr
+        movie.frames.go_to_frame(fnr)
+        for snr in range(movie.frames.sprite_count):
+            raw_sprite = movie.frames.get_raw_sprite(snr)
+            if raw_sprite != bytearray(len(raw_sprite)):
+                print "---- Sprite #%d:" % snr
+                print "  <%s>" % raw_sprite
+
 def show_images(movie):
     images = []
     for cl in movie.castlibs.iter_by_nr():
