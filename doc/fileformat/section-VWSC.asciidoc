@@ -76,7 +76,7 @@ Describes the sprite properties for each frame.
     +---+---+---+---+
     |       |          (Constant = 13)
     +---+---+
-    |       |          FrameByteSize -- the number of bytes per channel per frame (Constant = 48)
+    |       |          SpriteByteSize -- the number of bytes per channel per frame (Constant = 48)
     +---+---+
     |       |          ChannelCount -- the number of sprite channels (typically 1006)
     +---+---+
@@ -121,13 +121,13 @@ following form when decoded from the delta format:
     +---+---+
     |       |  Reference to frame-interval descriptor
     +---+---+
-    | PosX  |
-    +---+---+
     | PosY  |
     +---+---+
-    | Width |
+    | PosX  |
     +---+---+
     | Height|
+    +---+---+
+    | Width |
     +---+---+
     |       | Flags? (0)
     +---+---+

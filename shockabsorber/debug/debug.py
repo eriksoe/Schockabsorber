@@ -11,6 +11,7 @@ def print_castlibs(movie):
             print "Cast table entry #%d: %s" % (i,cm)
 
 def print_spritevectors(movie):
+    if movie.frames==None: return
     for fnr in range(1,1+movie.frames.frame_count()):
         print "==== Frame #%d: ====" % fnr
         movie.frames.go_to_frame(fnr)
@@ -18,7 +19,8 @@ def print_spritevectors(movie):
             raw_sprite = movie.frames.get_raw_sprite(snr)
             if raw_sprite != bytearray(len(raw_sprite)):
                 print "---- Sprite #%d:" % snr
-                print "  <%s>" % raw_sprite
+                print "  raw=<%s>" % raw_sprite
+                print "  %s" % movie.frames.get_sprite(snr)
 
 def show_images(movie):
     images = []
@@ -40,7 +42,7 @@ def show_images(movie):
             if len(images)>50: break
     print "Image count: %d" % len(images)
 
-    W = 5000; H = 1200
+    W = 8000; H = 1200
     window = pyglet.window.Window(width=W, height=H)
 
     @window.event
