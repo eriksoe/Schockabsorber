@@ -1,15 +1,41 @@
 import struct
 
+class Score: #------------------------------
+    """Represents the Score: everything about frames, sprite-channels, and
+    sprites."""
+
+    def __init__(self, frame_seq, sprite_table):
+        self.frame_seq = frame_seq
+        self.sprite_table = sprite_table
+
+    def go_to_frame(self, where):
+        self.frame_seq.go_to_frame(where)
+
+    def get_sprite(self, sprite_nr):
+        # TODO: Should sprite objects have more identity?
+        return self.frame_seq.get_sprite(sprite_nr)
+#--------------------------------------------------
+
 class FrameSequence: #------------------------------
+    """Represents the sprite-info for each sprite for each channel.
+
+    Given properties:
+    - frame_list is a list of FrameDelta objects, one for each frame
+        in order.
+
+    - channel_count is the total number of sprite channels.
+
+    - sprite_size is the size of each sprite, in bytes.
+
+    Computed properties:
+    - current_frame_nr is a frame number which can be changed.
+
+    - sprite_vector is the bytes containing the sprite-info as of the
+      current frame.
+
+    """
+
     def __init__(self, sprite_count, sprite_size, frame_list):
-        """
-        frame_list is a list of FrameDelta objects,
-        one for each frame in order.
-
-        sprite_count is the total number of sprites.
-
-        sprite_size is the size of each sprite, in bytes.
-        """
         self.sprite_count = sprite_count
         self.sprite_size = sprite_size
         self.frame_list = frame_list
