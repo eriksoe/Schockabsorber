@@ -18,9 +18,14 @@ def print_spritevectors(movie):
         for snr in range(movie.frames.sprite_count):
             raw_sprite = movie.frames.get_raw_sprite(snr)
             if raw_sprite != bytearray(len(raw_sprite)):
+                sprite = movie.frames.get_sprite(snr)
                 print "---- Sprite #%d:" % snr
                 print "  raw=<%s>" % raw_sprite
-                print "  %s" % movie.frames.get_sprite(snr)
+                print "  %s" % sprite
+                if sprite.interval_ref > 0:
+                    (castnr, membernr) = sprite.member_ref
+                    member = movie.castlibs.get_cast_member(castnr, membernr)
+                    print "  -> member: %s" % member
 
 def show_images(movie):
     images = []
