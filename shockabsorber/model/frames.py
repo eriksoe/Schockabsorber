@@ -71,7 +71,7 @@ class Sprite: #------------------------------
     def set_bytes(self,raw):
         self.raw = raw
         [flags1, v2, castlib, castmember, v5, interval_ref,
-         posX, posY, width, height,
+         posY, posX, height, width,
          v11, v12, v13, v14, v15, v16
         ] = struct.Struct('>16h').unpack_from(buffer(raw), 0)
         rest = raw[16:]
