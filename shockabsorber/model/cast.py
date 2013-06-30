@@ -10,6 +10,9 @@ class CastLibraryTable: #------------------------------
     def iter_by_nr(self):
         return self.by_nr.itervalues()
 
+    def get_cast_library(self, lib_nr):
+        return self.by_nr[lib_nr]
+
     def get_cast_member(self, lib_nr, member_nr):
         cast_lib = self.by_nr[lib_nr]
         return cast_lib.get_cast_member(member_nr) if cast_lib != None else None
@@ -26,7 +29,12 @@ class CastLibrary: #------------------------------
         self.castmember_table = None
 
     def __repr__(self):
-        return "<CastLibrary #%d name=\"%s\">" % (self.nr, self.name)
+        return "<CastLibrary #%d name=\"%s\" size=%d>" % (self.nr, self.name,
+                                                          len(self.castmember_table) if self.castmember_table != None else -1)
+
+    def get_path(self): return self.path
+    def castmember_table_is_set(self): return self.castmember_table != None
+    def get_castmember_table(self): return self.castmember_table
 
     def set_castmember_table(self,table):
         self.castmember_table = table

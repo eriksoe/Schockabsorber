@@ -196,6 +196,15 @@ def load_movie(filename):
 
         return Movie(castlibs=castlibs, frames=score, scripts="TODO")
 
+def load_cast_library(filename):
+    print "DB| load_cast_library: filename=%s" % filename
+    with open(filename) as f:
+        (loader_context, sections_map, castlibs, castidx_order) = load_file(f)
+
+        # TODO script_ctx = script_parser.create_script_context(sections_map, loader_context)
+        print "DB| load_cast_library: filename=%s" % filename
+        return castlibs.get_cast_library(0)
+
 def load_file(f):
     xheader = f.read(12)
     [magic,size,tag] = struct.unpack('!4si4s', xheader)
@@ -237,7 +246,7 @@ def load_file(f):
 
 def read_singletons(sections_map, loader_context):
     mcsl_e = sections_map.entry_by_tag("MCsL")
-    castlib_table = (CastLibraryTable([CastLibrary(-1,None,None,0,None,1024)]) if mcsl_e==None else
+    castlib_table = (CastLibraryTable([CastLibrary(0,None,None,0,None,1024)]) if mcsl_e==None else
                      parse_cast_lib_section(mcsl_e.bytes(), loader_context))
 
     keys_e = sections_map.entry_by_tag("KEY*")
