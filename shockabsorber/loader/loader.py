@@ -65,6 +65,8 @@ class CastMember: #------------------------------
     def add_media(self,tag,data):
         self.media[tag] = data
 
+    def get_name(self): return self.name
+
     @staticmethod
     def parse(blob,snr, loader_context):
         buf = SeqBuffer(blob)
@@ -124,6 +126,8 @@ class ImageCastType(CastType): #--------------------
     def repr_extra(self):
         return " dims=%s anchor=%s bpp=%d misc=%s" % (
             self.dims, self.anchor, self.bpp, self.misc)
+
+    def get_anchor(self): return self.anchor
 
     @staticmethod
     def parse(buf):

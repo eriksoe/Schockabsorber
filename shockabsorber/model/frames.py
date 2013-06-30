@@ -53,8 +53,11 @@ class FrameSequence: #------------------------------
     def sprite_count(self):
         return self.sprite_count
 
+    def get_current_frame_nr(self):
+        return self.current_frame_nr + 1
+
     def go_to_frame(self, where):
-        where -=1 # Adjust: array is 0-based
+        where -= 1 # Adjust: array is 0-based
         if self.current_frame_nr > where:
             # Could perhaps optimize this.
             self.reset()
@@ -106,6 +109,9 @@ class Sprite: #------------------------------
         self.pos = (posX, posY)
         self.size = (width,height)
         self.extras = [flags1, v2, v5, v11, v12, v13, v14, v15, v16, rest]
+
+    def get_pos(self): return self.pos
+    def get_size(self): return self.size
 
     def __repr__(self):
         return "<Sprite #%d member=%s ref=%s pos=%s size=%s extras=%s>" % (

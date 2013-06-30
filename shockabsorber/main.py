@@ -49,4 +49,5 @@ def main():
 
     debug.print_castlibs(movie)
 #    debug.show_images(movie)
-    debug.print_spritevectors(movie)
+#    debug.print_spritevectors(movie)
+    debug.show_frames(movie)

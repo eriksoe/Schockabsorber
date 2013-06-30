@@ -66,3 +66,63 @@ def show_images(movie):
             y += h + 20
 
     pyglet.app.run()
+
+
+def show_frames(movie):
+    if movie.frames==None:
+        print "==== (No score.) ===="
+        return
+
+    loaded_images = {}
+    def get_image(member_ref):
+        if not (member_ref in loaded_images):
+            (libnr, membernr) = member_ref
+            member = movie.castlibs.get_cast_member(libnr, membernr)
+            if not 'BITD' in member.media: return None
+            castdata = member.castdata
+            media = member.media['BITD']
+            (w,h) = castdata.dims
+            (tw,th) = castdata.total_dims
+            bpp = castdata.bpp
+            image = shockabsorber.loader.rle.rle_decode(w,h, tw, bpp, media.data)
+            loaded_images[member_ref] = image
+        return loaded_images[member_ref]
+
+
+    def draw_frame(fnr):
+        print "==== Frame #%d ====" % fnr
+        movie.frames.go_to_frame(fnr)
+        for snr in range(movie.frames.sprite_count):
+            sprite = movie.frames.get_sprite(snr)
+            if sprite.interval_ref > 0:
+                (libnr, membernr) = sprite.member_ref
+                member = movie.castlibs.get_cast_member(libnr, membernr)
+                if member.type==1:
+                    image = get_image(sprite.member_ref)
+                    if image==None:
+                        #print "DB| image==None for member_ref %s" % (sprite.member_ref,)
+                        continue
+                    (posX,posY) = sprite.get_pos()
+                    (szX,szY) = sprite.get_size()
+                    (ancY, ancX) = member.castdata.get_anchor()
+                    bltX = posX-ancX; bltY = 768-(posY-ancY)
+                    #print "DB| blit: name=%s pos=%s anchor=%s size=%s blitpos=%s" % (
+                    #    member.get_name(), (posX,posY), (ancX,ancY), (szX,szY), (bltX,bltY))
+                    image.blit(bltX, bltY-szY)
+
+    W = 1024; H = 768
+    window = pyglet.window.Window(width=W, height=H)
+
+    ani_state = {"fnr": 1}
+    @window.event
+    def on_draw():
+        window.clear()
+        draw_frame(ani_state["fnr"])
+
+    def update(dt):
+        ani_state["fnr"] += 1
+        on_draw()
+
+    pyglet.clock.schedule_interval(update, 0.1)
+
+    pyglet.app.run()
