@@ -104,17 +104,20 @@ class Sprite: #------------------------------
          v11, v12, v13, v14, v15, v16
         ] = struct.Struct('>16h').unpack_from(buffer(raw), 0)
         rest = raw[16:]
+        ink = flags1 & 63; flags1 &=~63
+
         self.member_ref = (castlib, castmember)
         self.interval_ref = interval_ref
         self.pos = (posX, posY)
         self.size = (width,height)
+        self.ink = ink
         self.extras = [flags1, v2, v5, v11, v12, v13, v14, v15, v16, rest]
 
     def get_pos(self): return self.pos
     def get_size(self): return self.size
 
     def __repr__(self):
-        return "<Sprite #%d member=%s ref=%s pos=%s size=%s extras=%s>" % (
+        return "<Sprite #%d member=%s ref=%s pos=%s size=%s ink=%d extras=%s>" % (
             self.nr, self.member_ref, self.interval_ref,
-            self.pos, self.size, self.extras)
+            self.pos, self.size, self.ink, self.extras)
 #--------------------------------------------------
