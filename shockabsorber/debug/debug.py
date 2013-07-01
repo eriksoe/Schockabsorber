@@ -1,5 +1,7 @@
 import pyglet
+import pyglet.text
 import shockabsorber.loader.rle
+from pyglet.gl import *
 
 def print_castlibs(movie):
     for cl in movie.castlibs.iter_by_nr():
@@ -26,6 +28,10 @@ def print_spritevectors(movie):
                     (castnr, membernr) = sprite.member_ref
                     member = movie.castlibs.get_cast_member(castnr, membernr)
                     print "  -> member: %s" % member
+                    if sprite.ink == 9:
+                        member2 = movie.castlibs.get_cast_member(castnr, membernr+1)
+                        if member2 != None:
+                            print "  -> mask: %s" % (member2.name)
 
 def show_images(movie):
     images = []
@@ -42,7 +48,7 @@ def show_images(movie):
             (w,h) = castdata.dims
             (tw,th) = castdata.total_dims
             bpp = castdata.bpp
-            image = shockabsorber.loader.rle.rle_decode(w,h, tw, bpp, media.data)
+            image = shockabsorber.loader.rle.rle_to_image(w,h, tw, bpp, media.data)
             images.append(image)
             if len(images)>50: break
     print "Image count: %d" % len(images)
@@ -73,20 +79,31 @@ def show_frames(movie):
         print "==== (No score.) ===="
         return
 
+    def rle_decode_member(member):
+        if not 'BITD' in member.media: return None
+        castdata = member.castdata
+        media = member.media['BITD']
+        (w,h) = castdata.dims
+        (tw,th) = castdata.total_dims
+        bpp = castdata.bpp
+        return shockabsorber.loader.rle.rle_decode(w,h, tw, bpp, media.data)
+
     loaded_images = {}
-    def get_image(member_ref):
-        if not (member_ref in loaded_images):
+    def get_image(member_ref, ink):
+        cache_key = (member_ref,ink)
+        if not (cache_key in loaded_images):
             (libnr, membernr) = member_ref
             member = movie.castlibs.get_cast_member(libnr, membernr)
-            if not 'BITD' in member.media: return None
-            castdata = member.castdata
-            media = member.media['BITD']
-            (w,h) = castdata.dims
-            (tw,th) = castdata.total_dims
-            bpp = castdata.bpp
-            image = shockabsorber.loader.rle.rle_decode(w,h, tw, bpp, media.data)
-            loaded_images[member_ref] = image
-        return loaded_images[member_ref]
+            if ink != 9: # not Mask
+                image = shockabsorber.loader.rle.bytes_to_image(rle_decode_member(member))
+            else:
+                mask_member = movie.castlibs.get_cast_member(libnr, membernr+1)
+                image_data = rle_decode_member(member)
+                mask_data = rle_decode_member(mask_member)
+                print "DB| Masked-ink sprite: %s / %s" % (member.name, mask_member.name)
+                image = shockabsorber.loader.rle.bytes_and_mask_to_image(image_data, mask_data)
+            loaded_images[cache_key] = image
+        return loaded_images[cache_key]
 
 
     def draw_frame(fnr):
@@ -98,7 +115,7 @@ def show_frames(movie):
                 (libnr, membernr) = sprite.member_ref
                 member = movie.castlibs.get_cast_member(libnr, membernr)
                 if member.type==1:
-                    image = get_image(sprite.member_ref)
+                    image = get_image(sprite.member_ref, sprite.ink)
                     if image==None:
                         #print "DB| image==None for member_ref %s" % (sprite.member_ref,)
                         continue
@@ -112,15 +129,22 @@ def show_frames(movie):
 
     W = 1024; H = 768
     window = pyglet.window.Window(width=W, height=H)
+    glEnable(GL_BLEND)
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
+
+    fnr_label = pyglet.text.Label(font_size=30, x=25, y=25, color=(255,255,0,0))
 
     ani_state = {"fnr": 1}
     @window.event
     def on_draw():
         window.clear()
         draw_frame(ani_state["fnr"])
+        fnr_label.draw()
 
     def update(dt):
         ani_state["fnr"] += 1
+        fnr = ani_state["fnr"]
+        fnr_label.text = "Frame %d" % fnr
         on_draw()
 
     pyglet.clock.schedule_interval(update, 0.1)
