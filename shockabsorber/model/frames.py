@@ -60,7 +60,7 @@ class FrameSequence: #------------------------------
         where -= 1 # Adjust: array is 0-based
         if self.current_frame_nr > where:
             # Could perhaps optimize this.
-            self.reset()
+            self.reset_sprite_vector()
         while self.current_frame_nr < where:
             self.current_frame_nr += 1
             self.frame_list[self.current_frame_nr].apply_to(self.sprite_vector)
