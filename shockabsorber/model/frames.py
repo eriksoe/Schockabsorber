@@ -54,6 +54,10 @@ class FrameCursor: #------------------------------
         sprite_size = self.frame_seq.sprite_size
         offset = sprite_nr * sprite_size
         return self.sprite_vector[offset : offset+sprite_size]
+
+    def get_frame_scripts(self):
+        return self.frame_seq.frame_script_list[self.current_frame_nr]
+
 #--------------------------------------------------
 
 class FrameSequence: #------------------------------
@@ -68,19 +72,20 @@ class FrameSequence: #------------------------------
     - sprite_size is the size of each sprite, in bytes.
     """
 
-    def __init__(self, sprite_count, sprite_size, frame_list):
+    def __init__(self, sprite_count, sprite_size, frame_delta_list, frame_script_list):
         self.sprite_count = sprite_count
         self.sprite_size = sprite_size
-        self.frame_list = frame_list
+        self.frame_delta_list = frame_delta_list
+        self.frame_script_list = frame_script_list
 
     def frame_count(self):
-        return len(self.frame_list)
+        return len(self.frame_delta_list)
 
     def create_cursor(self):
         return FrameCursor(self)
 
     def apply_delta_to(self, fnr, target):
-        self.frame_list[fnr].apply_to(target)
+        self.frame_delta_list[fnr].apply_to(target)
 
 #--------------------------------------------------
 

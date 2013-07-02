@@ -19,6 +19,12 @@ def print_spritevectors(movie):
     for fnr in range(1,1+frames.frame_count()):
         print "==== Frame #%d: ====" % fnr
         cursor.go_to_frame(fnr)
+
+        for scr in cursor.get_frame_scripts():
+            ((libnr,memnr),extra) = scr
+            scr_member = movie.castlibs.get_cast_member(libnr, membernr)
+            print "  -> Script %s: %s (%d)" % ((libnr,memnr), scr_member.name, extra)
+
         for snr in range(frames.sprite_count):
             raw_sprite = cursor.get_raw_sprite(snr)
             if raw_sprite != bytearray(len(raw_sprite)):
