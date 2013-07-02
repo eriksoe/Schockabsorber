@@ -16,17 +16,8 @@ class Score: #------------------------------
         return self.frame_seq.get_sprite(sprite_nr)
 #--------------------------------------------------
 
-class FrameSequence: #------------------------------
-    """Represents the sprite-info for each sprite for each channel.
-
-    Given properties:
-    - frame_list is a list of FrameDelta objects, one for each frame
-        in order.
-
-    - channel_count is the total number of sprite channels.
-
-    - sprite_size is the size of each sprite, in bytes.
-
+class FrameCursor: #------------------------------
+    """
     Computed properties:
     - current_frame_nr is a frame number which can be changed.
 
@@ -34,24 +25,15 @@ class FrameSequence: #------------------------------
       current frame.
 
     """
-
-    def __init__(self, sprite_count, sprite_size, frame_list):
-        self.sprite_count = sprite_count
-        self.sprite_size = sprite_size
-        self.frame_list = frame_list
-
+    def __init__(self, frame_seq):
+        self.frame_seq = frame_seq
         self.reset_sprite_vector()
         self.go_to_frame(1)
 
     def reset_sprite_vector(self):
         self.current_frame_nr = -1
-        self.sprite_vector = bytearray(self.sprite_count * self.sprite_size)
-
-    def frame_count(self):
-        return len(self.frame_list)
-
-    def sprite_count(self):
-        return self.sprite_count
+        size = self.frame_seq.sprite_count * self.frame_seq.sprite_size
+        self.sprite_vector = bytearray(size)
 
     def get_current_frame_nr(self):
         return self.current_frame_nr + 1
@@ -63,14 +45,42 @@ class FrameSequence: #------------------------------
             self.reset_sprite_vector()
         while self.current_frame_nr < where:
             self.current_frame_nr += 1
-            self.frame_list[self.current_frame_nr].apply_to(self.sprite_vector)
+            self.frame_seq.apply_delta_to(self.current_frame_nr, self.sprite_vector)
 
     def get_sprite(self, sprite_nr):
         return Sprite(sprite_nr, self.get_raw_sprite(sprite_nr))
 
     def get_raw_sprite(self, sprite_nr):
-        offset = sprite_nr * self.sprite_size
-        return self.sprite_vector[offset : offset+self.sprite_size]
+        sprite_size = self.frame_seq.sprite_size
+        offset = sprite_nr * sprite_size
+        return self.sprite_vector[offset : offset+sprite_size]
+#--------------------------------------------------
+
+class FrameSequence: #------------------------------
+    """Represents the sprite-info for each sprite for each channel.
+
+    Given properties:
+    - frame_list is a list of FrameDelta objects, one for each frame
+        in order.
+
+    - channel_count is the total number of sprite channels.
+
+    - sprite_size is the size of each sprite, in bytes.
+    """
+
+    def __init__(self, sprite_count, sprite_size, frame_list):
+        self.sprite_count = sprite_count
+        self.sprite_size = sprite_size
+        self.frame_list = frame_list
+
+    def frame_count(self):
+        return len(self.frame_list)
+
+    def create_cursor(self):
+        return FrameCursor(self)
+
+    def apply_delta_to(self, fnr, target):
+        self.frame_list[fnr].apply_to(target)
 
 #--------------------------------------------------
 

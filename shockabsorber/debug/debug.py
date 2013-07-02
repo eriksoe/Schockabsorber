@@ -13,14 +13,16 @@ def print_castlibs(movie):
             print "Cast table entry #%d: %s" % (i,cm)
 
 def print_spritevectors(movie):
-    if movie.frames==None: return
-    for fnr in range(1,1+movie.frames.frame_count()):
+    frames = movie.frames
+    if frames==None: return
+    cursor = frames.create_cursor()
+    for fnr in range(1,1+frames.frame_count()):
         print "==== Frame #%d: ====" % fnr
-        movie.frames.go_to_frame(fnr)
-        for snr in range(movie.frames.sprite_count):
-            raw_sprite = movie.frames.get_raw_sprite(snr)
+        cursor.go_to_frame(fnr)
+        for snr in range(frames.sprite_count):
+            raw_sprite = cursor.get_raw_sprite(snr)
             if raw_sprite != bytearray(len(raw_sprite)):
-                sprite = movie.frames.get_sprite(snr)
+                sprite = cursor.get_sprite(snr)
                 print "---- Sprite #%d:" % snr
                 print "  raw=<%s>" % raw_sprite
                 print "  %s" % sprite
@@ -106,15 +108,16 @@ def show_frames(movie):
         return loaded_images[cache_key]
 
 
+    cursor = movie.frames.create_cursor()
     def draw_frame(fnr):
         print "==== Frame #%d ====" % fnr
-        movie.frames.go_to_frame(fnr)
+        cursor.go_to_frame(fnr)
         for snr in range(movie.frames.sprite_count):
-            sprite = movie.frames.get_sprite(snr)
+            sprite = cursor.get_sprite(snr)
             if sprite.interval_ref > 0:
                 (libnr, membernr) = sprite.member_ref
                 member = movie.castlibs.get_cast_member(libnr, membernr)
-                if member.type==1:
+                if member!=None and member.type==1:
                     image = get_image(sprite.member_ref, sprite.ink)
                     if image==None:
                         #print "DB| image==None for member_ref %s" % (sprite.member_ref,)
