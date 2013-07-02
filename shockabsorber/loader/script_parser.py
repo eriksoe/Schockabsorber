@@ -80,9 +80,9 @@ def parse_lscr_section(snr, blob, names):
     handlers_meta = parse_lscr_handler_table(subblob(blob, (handler_offset, 46*handler_count)),
                                              handler_count, names)
     for h in handlers_meta:
-        [name, code_slice, varnames_slice,
+        [name, code_slice, argnames_slice,
          localnames_slice, auxslice2, auxslice3, misc] = h
-        arg_names = parse_lscr_varnames_table(subblob(blob, varnames_slice, 2), varnames_slice[1],
+        arg_names = parse_lscr_varnames_table(subblob(blob, argnames_slice, 2), argnames_slice[1],
                                              names)
         local_names = parse_lscr_varnames_table(subblob(blob, localnames_slice, 2), localnames_slice[1],
                                              names)
@@ -116,24 +116,24 @@ def parse_lscr_handler_table(blob, count, names):
     res = []
     for i in range(count):
         [handler_name_nr, v1, code_length, code_offset] = buf.unpack('>hhii')
-        [varname_count, varnames_offset,
-         length5, offset5,
+        [argname_count, argnames_offset,
+         localname_count, localnames_offset,
          length7, offset7, v8] = buf.unpack('>hihihii')
         [v10, length12, offset12, v13] = buf.unpack('>hhii')
 
         handler_name = names[handler_name_nr]
         print "DB| * handler_name = '%s' (0x%x)" % (handler_name, handler_name_nr)
         print "DB|   subsections = %s" % ([(code_offset, code_length),
-                                           (varnames_offset, varname_count),
-                                           (offset5, length5),
+                                           (argnames_offset, argname_count),
+                                           (localnames_offset, localname_count),
                                            (offset7, length7),
                                            (offset12, length12)],)
         print "DB|   handler extras = %s" % ([v1, v8, v10, v13],)
         misc = [v1, v8, v10, v13]
         res.append((handler_name,
                     (code_offset, code_length),
-                    (varnames_offset, varname_count),
-                    (offset5, length5),
+                    (argnames_offset, argname_count),
+                    (localnames_offset, localname_count),
                     (offset7, length7),
                     (offset12, length12),
                     misc))
