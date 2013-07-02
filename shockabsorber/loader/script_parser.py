@@ -12,8 +12,10 @@ def create_script_context(mmap, loader_context):
 
     lnam_e = mmap[lnam_sid]
     names = parse_lnam_section(lnam_e.bytes())
+    print "DB| script names: %s" % names
     print "DB| lscr_sids=%s" % (lscr_sids,)
-    scripts = map(lambda sid: parse_lscr_section(mmap[sid].bytes(), names), lscr_sids)
+    scripts = map(lambda sid: parse_lscr_section(sid,mmap[sid].bytes(), names),
+                  lscr_sids)
     return (names,scripts)
 
 def parse_lctx_section(blob):
@@ -49,7 +51,8 @@ def parse_lnam_section(blob):
     return ScriptNames(names, [v1,v2,len1,len2,v3])
 #--------------------------------------------------
 
-def parse_lscr_section(blob, names):
+def parse_lscr_section(snr, blob, names):
+    print "DB| Lscr section #%d:" % (snr,)
     buf = SeqBuffer(blob)
     [v1,v2,totalLength,totalLength2,
      handler_offset0, count1, count2] = buf.unpack('>4i3H')
@@ -77,17 +80,18 @@ def parse_lscr_section(blob, names):
     handlers_meta = parse_lscr_handler_table(subblob(blob, (handler_offset, 46*handler_count)),
                                              handler_count, names)
     for h in handlers_meta:
-        [name, code_slice, varnames_slice, varname_count,
-         auxslice1, auxslice2, auxslice3, misc] = h
-        varnames = parse_lscr_varnames_table(subblob(blob, varnames_slice), varname_count,
+        [name, code_slice, varnames_slice,
+         localnames_slice, auxslice2, auxslice3, misc] = h
+        arg_names = parse_lscr_varnames_table(subblob(blob, varnames_slice, 2), varnames_slice[1],
                                              names)
-        aux1 = subblob(blob, auxslice1)
+        local_names = parse_lscr_varnames_table(subblob(blob, localnames_slice, 2), localnames_slice[1],
+                                             names)
         aux2 = subblob(blob, auxslice2)
         aux3 = subblob(blob, auxslice3)
         code_blob = subblob(blob, code_slice)
-        print "DB| handler %s:\n    code-bin=<%s>\n    vars=%s\n    aux=<%s>/<%s>/<%s>" % (
-            name, code_blob, varnames, aux1, aux2, aux3)
-        code = parse_lscr_code(code_blob, names, strings, varnames)
+        print "DB| handler %s:\n    code-bin=<%s>\n    vars=%s\n    locals=%s\n    aux=<%s>/<%s>" % (
+            name, code_blob, arg_names, local_names, aux2, aux3)
+        code = parse_lscr_code(code_blob, names, strings, arg_names, local_names)
         print "DB| handler %s:\n    code=%s" % (name, code)
     return (strings,"TODO")
 
@@ -128,7 +132,7 @@ def parse_lscr_handler_table(blob, count, names):
         misc = [v1, v8, v10, v13]
         res.append((handler_name,
                     (code_offset, code_length),
-                    (varnames_offset, 2 * varname_count), varname_count,
+                    (varnames_offset, varname_count),
                     (offset5, length5),
                     (offset7, length7),
                     (offset12, length12),
@@ -179,14 +183,14 @@ OPCODE_SPEC = {
     0x45: ("Push-symbol", ['sym8']),    0x85: ("Push-symbol", ['sym16']),
     0x49: ("Push-global", ['sym8']),    0x89: ("Push-global", ['sym16']),
     0x4a: ("Push-property", ['sym8']),  0x8a: ("Push-property", ['sym16']),
-    0x4b: ("Push-parameter", ['locvar8']),
-    0x4c: ("Push-local", ['int8']), # ~> locvar8
+    0x4b: ("Push-parameter", ['argvar8']),
+    0x4c: ("Push-local", ['locvar8']),
 
     0x4f: ("Store-global", ['sym8']),   0x8f: ("Store-global", ['sym16']),
 
     0x50: ("Store-property", ['sym8']), 0x90: ("Store-property", ['sym16']),
-    0x51: ("Store-parameter", ['locvar8']),
-    0x52: ("Store-local", ['int8']), # ~> locvar8
+    0x51: ("Store-parameter", ['argvar8']),
+    0x52: ("Store-local", ['locvar8']),
 
                                         0x93: ("Jump-relative", ['rel16']),
     0x54: ("Jump-relative-back", ['relb8']), 0x94: ("Jump-relative-back", ['relb16']),
@@ -212,7 +216,7 @@ OPCODE_SPEC = {
     0xf1: ("Push-float", ['float32']),
 }
 
-def parse_lscr_code(blob, names, strings, names_of_locals):
+def parse_lscr_code(blob, names, strings, arg_names, local_names):
     print "DB| handler code blob (length %d): <%s>" % (len(blob), blob)
     buf = SeqBuffer(blob)
     res = []
@@ -231,9 +235,12 @@ def parse_lscr_code(blob, names, strings, names_of_locals):
                 elif a=='sym8':
                     [arg] = buf.unpack('B')
                     arg = names[arg]
+                elif a=='argvar8':
+                    [arg] = buf.unpack('B')
+                    arg = (arg,arg_names[arg])
                 elif a=='locvar8':
                     [arg] = buf.unpack('B')
-                    arg = (arg,names_of_locals[arg])
+                    arg = (arg,local_names[arg])
                 elif a=='rel8':
                     [arg] = buf.unpack('B')
                     arg = (arg, codepos+arg)
@@ -270,6 +277,6 @@ def parse_lscr_code(blob, names, strings, names_of_locals):
     return res
 
 ###========== Utilities: ========================================
-def subblob(blob, slice_desc):
+def subblob(blob, slice_desc, unit_size=1):
     (offset, length) = slice_desc
-    return blob[offset : offset + length]
+    return blob[offset : offset + length * unit_size]
