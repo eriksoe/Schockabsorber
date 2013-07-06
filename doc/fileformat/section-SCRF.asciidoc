@@ -1,4 +1,4 @@
-Section "VWSC"
+Section "SCRF"
 --------------
 
 Purpose of section::
