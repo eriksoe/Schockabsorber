@@ -22,15 +22,16 @@ def parse_lctx_section(blob):
     buf = SeqBuffer(blob)
     [v1, v2, nEntries, nEntries2] = buf.unpack('>4i') # Usually v1=v2=0
     [offset,v4] = buf.unpack('>2h') # Usually offset=96, v4=12
-    [v5,v6] = buf.unpack('>2i') # Usually v5=0, v6=1
-    print "DB| LctX extras: %s" % ([[v1,v2, nEntries2], [v4], [v5,v6]],)
+    [v5,v6,v7,lnam_section_id,validCnt,flags10,freePtr] = buf.unpack('>4i3h') # Usually v5=0, v6=1/3, v7=-1
+    print "DB| LctX entry_count=%d/%d valid_count=%d offset=%d freePtr=%d" % (nEntries, nEntries2, validCnt, offset, freePtr)
+    print "DB| LctX names: section #%d" % (lnam_section_id,)
+    print "DB| LctX extras: %s" % ([[v1,v2], [v4,v5,v6,v7,flags10]],)
 
     def read_entry():
         [w1, section_id, w2,w3] = buf.unpack('>ii2h')
-        print "DB|   LctX section extras: %s" % ([w1,w2,w3],)
+        print "DB|   LctX section entry: %s" % ([w1,section_id,w2,w3],)
         return section_id
 
-    lnam_section_id = read_entry()
     buf.seek(offset)
     lscr_sections = []
     for i in range(nEntries):
@@ -81,16 +82,16 @@ def parse_lscr_section(snr, blob, names):
                                              handler_count, names)
     for h in handlers_meta:
         [name, code_slice, argnames_slice,
-         localnames_slice, auxslice2, auxslice3, misc] = h
+         localnames_slice, auxslice2, lines_slice, misc] = h
         arg_names = parse_lscr_varnames_table(subblob(blob, argnames_slice, 2), argnames_slice[1],
                                              names)
         local_names = parse_lscr_varnames_table(subblob(blob, localnames_slice, 2), localnames_slice[1],
                                              names)
         aux2 = subblob(blob, auxslice2)
-        aux3 = subblob(blob, auxslice3)
+        lines_blob = subblob(blob, lines_slice)
         code_blob = subblob(blob, code_slice)
-        print "DB| handler %s:\n    code-bin=<%s>\n    vars=%s\n    locals=%s\n    aux=<%s>/<%s>" % (
-            name, code_blob, arg_names, local_names, aux2, aux3)
+        print "DB| handler %s:\n    code-bin=<%s>\n    vars=%s\n    locals=%s\n    linetable=%s\n    aux=<%s>" % (
+            name, code_blob, arg_names, local_names, lines_blob, aux2)
         code = parse_lscr_code(code_blob, names, strings, arg_names, local_names)
         print "DB| handler %s:\n    code=%s" % (name, code)
     return (strings,"TODO")
@@ -119,7 +120,7 @@ def parse_lscr_handler_table(blob, count, names):
         [argname_count, argnames_offset,
          localname_count, localnames_offset,
          length7, offset7, v8] = buf.unpack('>hihihii')
-        [v10, length12, offset12, v13] = buf.unpack('>hhii')
+        [v10, lines_count, lines_offset, v13] = buf.unpack('>hhii')
 
         handler_name = names[handler_name_nr]
         print "DB| * handler_name = '%s' (0x%x)" % (handler_name, handler_name_nr)
@@ -127,7 +128,7 @@ def parse_lscr_handler_table(blob, count, names):
                                            (argnames_offset, argname_count),
                                            (localnames_offset, localname_count),
                                            (offset7, length7),
-                                           (offset12, length12)],)
+                                           (lines_offset, lines_count)],)
         print "DB|   handler extras = %s" % ([v1, v8, v10, v13],)
         misc = [v1, v8, v10, v13]
         res.append((handler_name,
@@ -135,7 +136,7 @@ def parse_lscr_handler_table(blob, count, names):
                     (argnames_offset, argname_count),
                     (localnames_offset, localname_count),
                     (offset7, length7),
-                    (offset12, length12),
+                    (lines_offset, lines_count),
                     misc))
     return res
 
