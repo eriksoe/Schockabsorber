@@ -32,6 +32,15 @@ def parse_lctx_section(blob):
         print "DB|   LctX section entry: %s" % ([w1,section_id,w2,w3],)
         return section_id
 
+    hbuf = SeqBuffer(buf.buf[buf.tell() : offset])
+    i=0
+    movie_handler_names = {}
+    while not hbuf.at_eof():
+        i+=1
+        [hname] = hbuf.unpack('>h')
+        if hname >= 0: movie_handler_names[i] = hname
+    print "DB| LctX movie handlers: %s" % movie_handler_names
+
     buf.seek(offset)
     lscr_sections = []
     for i in range(nEntries):

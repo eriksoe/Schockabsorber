@@ -11,9 +11,9 @@ Related sections::
 
 ### Format
 
-    +========+=====+===============+
-    | Header | ... | ScriptEntries |
-    +========+=====+===============+
+    +========+==========+===============+
+    | Header | Handlers | ScriptEntries |
+    +========+==========+===============+
 
 ### Header
 
@@ -44,6 +44,22 @@ Related sections::
     +---+---+
     |FreePtr|         First free entry in free-list.
     +---+---+
+
+### Handlers
+
+This part, which lasts from the end of the header and up to +Offset+
+into the section, appears to contain names of movie-level hooks.
+
+    [ Repetition 27(?) times  (up till Offset)
+      +---+---+
+      |Name   |
+      +---+---+
+    ]
+
+Here, +Name+ is a name index of the name of a handler -- or -1 to
+indicate "no handler".
+The 14th and 15th entry in this table are for the "start movie" and
+"stop movie" handlers, respectively.
 
 ### ScriptEntries
 
