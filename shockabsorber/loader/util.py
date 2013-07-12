@@ -71,3 +71,7 @@ class SeqBuffer:  #------------------------------
 
 def rev(s):
      return s[::-1]
+
+def half_expect(actual_value, expected_value, name):
+    if actual_value != expected_value:
+        print "Surprised: %s is not %s but %s." % (name, expected_value, actual_value)

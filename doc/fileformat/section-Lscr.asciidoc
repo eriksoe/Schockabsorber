@@ -1,0 +1,86 @@
+Section "Lscr"
+--------------
+
+Purpose of section::
+Contains scripts (which are collections of functions).
+
+Related sections::
+
+- "LctX" -- Script collection
+- "Lnam" -- Names used in scripts
+
+### Format
+
+    +========+       +================+    +===========+
+    | Header |--+--->| Function table |--->| Functions |
+    +========+  |    +================+    +===========+
+                |\   +=========+
+                | -->| Globals |
+                |    +=========+
+                |\   +============+
+                | -->| Properties |
+                |    +============+
+                |\   +================+
+                | -->| Handler vector |
+                |    +================+
+                |\   +==========+
+                | -->| Literals |
+                |    +==========+
+                |          v
+                 \   +================+
+                  -->| Literal data   |
+                     +================+
+
+#### Header
+
+    +---+---+---+---+== +0
+    |               |  Constant = 0
+    +---+---+---+---+
+    |               |  Constant = 0
+    +---+---+---+---+
+    | TotalLength   |  Effective length of section
+    +---+---+---+---+
+    | TotalLength2  |  Equal to TotalLength
+    +---+---+---+---+== +16
+    | HdrLen|          Header length? (=92)
+    +---+---+
+    | ScrNr |          Script number (0, ...)
+    +---+---+
+    |       |          ?? (Same for all scripts in a file; observed: 2-8)
+    +---+---+---+---+== +22
+    |               |  Constant = -1
+    +---+---+---+---+
+    |               |  Constant = 0
+    +---+---+---+---+
+    |               |  ??
+    +---+---+---+---+
+    |               |  Constant = 0
+    +---+---+---+---+
+    |               |  ?? (0/2)
+    +---+---+---+---+
+    |               |  Constant = 1 // varnames_count?
+    +---+---+---+---+== +46
+    |       |          ?? (1-??) (ScriptID2)
+    +---+---+
+    |       |          ??
+    +---+---+---+---+---+---+== +50
+    |HVecLen|HVecOffset     |  For handler vector
+    +---+---+---+---+---+---+
+    |               |          Flags (32768|4096|2048|512|256|128|32|2)
+    +---+---+---+---+---+---+== +60
+    | PCount| POffset       |  For list of names of properties.
+    +---+---+---+---+---+---+
+    | GCount| GOffset       |  For list of names of globals.
+    +---+---+---+---+---+---+
+    | FCount| FOffset       |  For list of functions.
+    +---+---+---+---+---+---+
+    | LCount| LOffsetOffset |  For list of literals (offset table).
+    +---+---+---+---+---+---+---+---+== +84
+    | LLength       | LOffset       |  For list of literals (content).
+    +---+---+---+---+---+---+---+---+== +92
+
+#### Globals
+#### Properties
+#### Literals
+#### Handler vector
+#### Functions

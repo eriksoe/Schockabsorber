@@ -2,7 +2,7 @@
 # All script-related file parsing.
 #
 
-from .util import SeqBuffer, rev
+from .util import SeqBuffer, rev, half_expect
 from shockabsorber.model.scripts import ScriptNames
 
 def create_script_context(mmap, loader_context):
@@ -32,13 +32,7 @@ def parse_lctx_section(blob):
         print "DB|   LctX section entry: %s" % ([w1,section_id,w2,w3],)
         return section_id
 
-    hbuf = SeqBuffer(buf.buf[buf.tell() : offset])
-    i=0
-    movie_handler_names = {}
-    while not hbuf.at_eof():
-        i+=1
-        [hname] = hbuf.unpack('>h')
-        if hname >= 0: movie_handler_names[i] = hname
+    movie_handler_names = parse_handler_nr_vector(buf.buf[buf.tell() : offset], 27)
     print "DB| LctX movie handlers: %s" % movie_handler_names
 
     buf.seek(offset)
@@ -65,28 +59,44 @@ def parse_lscr_section(snr, blob, names):
     print "DB| Lscr section #%d:" % (snr,)
     buf = SeqBuffer(blob)
     [v1,v2,totalLength,totalLength2,
-     handler_offset0, count1, count2] = buf.unpack('>4i3H')
-    [v3,v4,v5,v6,v7,v8,v9,v10,v11] = buf.unpack('>6ihhh')
-    [after_strings_offset, v12, count3, offset3, count4, offset4] = buf.unpack('>iiHiHi')
+     header_length, script_id, count2] = buf.unpack('>4i3H')
+    [v3,v4,v5,v6,v7,v8,v9,v10,hvec_length] = buf.unpack('>6ihhh')
+    [hvec_offset, flags56, props_count, props_offset, globs_count, globs_offset] = buf.unpack('>iiHiHi')
     [handler_count, handler_offset] = buf.unpack('>Hi')
-    [string_count, footnote_offset, v20, strings_offset] = buf.unpack('>Hiii')
+    [literal_count, literal_offsets_offset, literals_length, literals_offset] = buf.unpack('>Hiii')
+    half_expect(v1, 0, "Lscr.v1")
+    half_expect(v2, 0, "Lscr.v2")
+    half_expect(totalLength2, totalLength, "Lscr.totalLength2")
+    half_expect(header_length, 92, "Lscr.header_length")
+    #half_expect(v1, 0, "Lscr.v1")
     print "DB| Lscr extras: %s" % ([[v1,v2,totalLength,totalLength2],
-                                    [handler_offset0,count1,count2],
-                                    [v3,v4,v5,v6,v7,v8,v9,v10,v11],
-                                    [v12, count3, offset4, count4, offset4],
-                                    [v20]],)
-    print "DB| Lscr offsets: %s" % ([handler_offset0, handler_offset, footnote_offset, strings_offset, after_strings_offset, offset3, offset4],)
-    print "DB|   part-before-handler-table: <%s>" % (buf.buf[handler_offset0:handler_offset],)
-    print "DB|   footnotes-part: <%s>" % (buf.buf[footnote_offset:strings_offset],)
-    script_id = count1 # ?
-    script_id2 = v9 # ?
-    varnames_count = v8 # ?
+                                    [header_length,script_id,count2],
+                                    [v3,v4,v5,v6,v7,v8,v9,v10],
+                                    [flags56]],)
+    print "DB| Lscr offsets: %s" % ([header_length, props_offset, globs_offset, handler_offset, literal_offsets_offset, literals_offset, hvec_offset, totalLength, len(buf.buf)],)
+    print "DB|   parts: %s" % ([("props",props_count,props_offset,props_offset+2*props_count),
+                                ("globs",globs_count,globs_offset,globs_offset+2*globs_count),
+                                ("handlers",handler_count, handler_offset, handler_offset+46*handler_count),
+                                ("literal-offsets", literal_count, literal_offsets_offset, literal_offsets_offset+4*literal_count),
+                                ("literals", literal_count, literals_length, literals_offset, literals_offset + literals_length),
+                                ("hvector", hvec_length, hvec_offset, hvec_offset+2*hvec_length),
+                                ("end", totalLength)],)
 
-    print "DB| string_count = %d varnames_count = %d handler_count = %d" % (string_count,varnames_count, handler_count)
+    ## String offsets table:
+    buf5 = SeqBuffer(buf.buf[literal_offsets_offset : literals_offset])
+    res5 = []
+    while not buf5.at_eof():
+        [tmpa,tmpb] = buf5.unpack('>ii')
+        res5.append((tmpa,tmpb))
+    print "DB| LcxT res5 (len=%d) = %s" % (len(res5), res5)
 
-    strings = parse_lscr_string_literals(blob[strings_offset:after_strings_offset],
-                                         string_count)
-    print "DB| Lscr.strings: %s" % (dict(enumerate(strings)),)
+    print "DB| handler vector: %s" % (parse_handler_nr_vector(buf.buf[hvec_offset : hvec_offset+2*hvec_length], hvec_length),)
+
+    print "DB| literal_count = %d handler_count = %d" % (literal_count,handler_count)
+
+    literals = parse_lscr_literals(blob[literals_offset:hvec_offset],
+                                         literal_count)
+    print "DB| Lscr.literals: %s" % (dict(enumerate(literals)),)
     handlers_meta = parse_lscr_handler_table(subblob(blob, (handler_offset, 46*handler_count)),
                                              handler_count, names)
     for h in handlers_meta:
@@ -101,11 +111,11 @@ def parse_lscr_section(snr, blob, names):
         code_blob = subblob(blob, code_slice)
         print "DB| handler %s:\n    code-bin=<%s>\n    vars=%s\n    locals=%s\n    linetable=%s\n    aux=<%s>" % (
             name, code_blob, arg_names, local_names, lines_blob, aux2)
-        code = parse_lscr_code(code_blob, names, strings, arg_names, local_names)
+        code = parse_lscr_code(code_blob, names, literals, arg_names, local_names)
         print "DB| handler %s:\n    code=%s" % (name, code)
-    return (strings,"TODO")
+    return (literals,"TODO")
 
-def parse_lscr_string_literals(blob, count):
+def parse_lscr_literals(blob, count):
     #print "DB| String literals:"
     buf = SeqBuffer(blob)
     res = []
@@ -285,6 +295,22 @@ def parse_lscr_code(blob, names, strings, arg_names, local_names):
         print "DB|    code: %s" % ((codepos,opcode,args),)
         res.append((codepos,opcode,args))
     return res
+
+def parse_handler_nr_vector(blob, count):
+    buf = SeqBuffer(blob)
+    res = {}
+    for i in range(1,1+count):
+        [nr] = buf.unpack('>h')
+        if nr >= 0: res[i] = nr
+    # Handler vector entries:
+    #  1:mouseDown, 2:mouseUp
+    #  3:keyDown??, 4:keyUp
+    #  6:prepareFrame
+    #  8:mouseEnter, 9:mouseLeave, 10:mouseWithin
+    #  12:startMovie, 13:stopMovie
+    #  16:exitFrame
+    return res
+
 
 ###========== Utilities: ========================================
 def subblob(blob, slice_desc, unit_size=1):
