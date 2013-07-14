@@ -2,7 +2,7 @@
 # All script-related file parsing.
 #
 
-from .util import SeqBuffer, rev, half_expect
+from .util import SeqBuffer, rev, half_expect, int_struct, double_struct
 from shockabsorber.model.scripts import ScriptNames
 
 def create_script_context(mmap, loader_context):
@@ -77,7 +77,7 @@ def parse_lscr_section(snr, blob, names):
     print "DB|   parts: %s" % ([("props",props_count,props_offset,props_offset+2*props_count),
                                 ("globs",globs_count,globs_offset,globs_offset+2*globs_count),
                                 ("handlers",handler_count, handler_offset, handler_offset+46*handler_count),
-                                ("literal-offsets", literal_count, literal_offsets_offset, literal_offsets_offset+4*literal_count),
+                                ("literal-offsets", literal_count, literal_offsets_offset, literal_offsets_offset+8*literal_count),
                                 ("literals", literal_count, literals_length, literals_offset, literals_offset + literals_length),
                                 ("hvector", hvec_length, hvec_offset, hvec_offset+2*hvec_length),
                                 ("end", totalLength)],)
@@ -94,8 +94,13 @@ def parse_lscr_section(snr, blob, names):
 
     print "DB| literal_count = %d handler_count = %d" % (literal_count,handler_count)
 
-    literals = parse_lscr_literals(blob[literals_offset:hvec_offset],
-                                         literal_count)
+    global_names = parse_lscr_varnames_table(subblob(blob, (globs_offset, globs_count), 2), globs_count, names)
+    property_names = parse_lscr_varnames_table(subblob(blob, (props_offset, props_count), 2), props_count, names)
+    literals = parse_lscr_literals(subblob(blob,(literal_offsets_offset, literal_count), 8),
+                                   subblob(blob,(literals_offset,literals_length)),
+                                   literal_count)
+    print "DB| Lscr.globals: %s" % (dict(enumerate(global_names)),)
+    print "DB| Lscr.properties: %s" % (dict(enumerate(property_names)),)
     print "DB| Lscr.literals: %s" % (dict(enumerate(literals)),)
     handlers_meta = parse_lscr_handler_table(subblob(blob, (handler_offset, 46*handler_count)),
                                              handler_count, names)
@@ -115,20 +120,30 @@ def parse_lscr_section(snr, blob, names):
         print "DB| handler %s:\n    code=%s" % (name, code)
     return (literals,"TODO")
 
-def parse_lscr_literals(blob, count):
+def parse_lscr_literals(table_blob, data_blob, count):
     #print "DB| String literals:"
-    buf = SeqBuffer(blob)
+    #print "DB|   count: %d  src: <%s> / <%s>" % (count,table_blob,data_blob)
+    buf = SeqBuffer(table_blob)
     res = []
     for i in range(count):
-        [length] = buf.unpack('>i')
-        #print "DB|   parse_lscr_string_literals: %d/%d: length=%d" % (i,count,length)
-        s = buf.readBytes(length)
-        if length>0 and s[length-1] == '\0': s=s[:length-1] # Remove NUL terminator
+        [type,offset] = buf.unpack('>ii')
+        #print "DB|   parse_lscr_string_literals: #%d: type=%d offset=%d" % (i,type,offset)
+        [length] = int_struct.unpack_from(data_blob, offset)
+        data = data_blob[offset+4 : offset+4+length]
+        if type==1: # String
+            lit = data
+            if length>0 and lit[length-1] == '\0':
+                # Remove NUL terminator
+                lit=lit[:length-1]
+            # TODO: wrap
+        elif type==9: # Double
+            [lit] = double_struct.unpack(data)
+            # TODO: wrap
+        else:
+            print "DB| Unknown literal type %d!" % (type,)
+            lit = None
         #print "DB|   #%d/%d: \"%s\"" % (i,count,s)
-        res.append(s)
-        if length % 2 > 0: buf.unpack('b') # Skip padding
-
-    #print "DB| parse_lscr_string_literals:  bytes left: %d" % (buf.bytes_left())
+        res.append(lit)
     return res
 
 def parse_lscr_handler_table(blob, count, names):
@@ -176,7 +191,7 @@ OPCODE_SPEC = {
     0x07: ("Divide", []),
     0x09: ("Negate", []),
     0x0a: ("Concat-strings", []),
-    #0x0b: string,string -> ?
+    0x0b: ("Concat-strings-with-space", []),
     0x0c: ("Less-than?", []),
     0x0e: ("Not-equals", []),
     0x0d: ("Less-than-or-equals", []),

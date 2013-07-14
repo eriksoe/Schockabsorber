@@ -75,3 +75,6 @@ def rev(s):
 def half_expect(actual_value, expected_value, name):
     if actual_value != expected_value:
         print "Surprised: %s is not %s but %s." % (name, expected_value, actual_value)
+
+int_struct = struct.Struct('>i')
+double_struct = struct.Struct('>d')
