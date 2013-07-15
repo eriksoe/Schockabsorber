@@ -150,7 +150,7 @@ def parse_lscr_handler_table(blob, count, names):
     buf = SeqBuffer(blob)
     res = []
     for i in range(count):
-        [handler_name_nr, v1, code_length, code_offset] = buf.unpack('>hhii')
+        [handler_name_nr, handler_nr, code_length, code_offset] = buf.unpack('>hhii')
         [argname_count, argnames_offset,
          localname_count, localnames_offset,
          length7, offset7, v8] = buf.unpack('>hihihii')
@@ -163,8 +163,8 @@ def parse_lscr_handler_table(blob, count, names):
                                            (localnames_offset, localname_count),
                                            (offset7, length7),
                                            (lines_offset, lines_count)],)
-        print "DB|   handler extras = %s" % ([v1, v8, v10, v13],)
-        misc = [v1, v8, v10, v13]
+        print "DB|   handler extras = %s" % ([v8, v10, v13],)
+        misc = [handler_nr, v8, v10, v13]
         res.append((handler_name,
                     (code_offset, code_length),
                     (argnames_offset, argname_count),
@@ -206,14 +206,14 @@ OPCODE_SPEC = {
     0x1e: ("Construct-linear-array", []),
     0x1f: ("Construct-assoc-array", []),
 
-    0x21: ("Push-something ('into')", []),
+    0x21: ("Swap", []),
 
     # Some instructions exist in an 8-bit and a 16-bit version.
     # Usually, the difference between the two opcodes is 0x40.
 
     0x41: ("Push-int", ['int8']),       0xae: ("Push-int", ['int16']),
-    0x42: ("Set-arg-count-A", ['int8']),
-    0x43: ("Set-arg-count-B", ['int8']),
+    0x42: ("Set-arg-count-void", ['int8']),
+    0x43: ("Set-arg-count-return", ['int8']),
     0x44: ("Push-string", ['str8']),
     0x45: ("Push-symbol", ['sym8']),    0x85: ("Push-symbol", ['sym16']),
     0x49: ("Push-global", ['sym8']),    0x89: ("Push-global", ['sym16']),
