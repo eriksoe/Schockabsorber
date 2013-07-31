@@ -56,7 +56,7 @@ Related sections::
     +---+---+---+---+
     |               |  Constant = 0
     +---+---+---+---+
-    |               |  ?? (0/2)
+    |               |  Script type: 0: behaviour, 2: global script.
     +---+---+---+---+
     |               |  Constant = 1 // varnames_count?
     +---+---+---+---+== +46
@@ -66,7 +66,7 @@ Related sections::
     +---+---+---+---+---+---+== +50
     |HVecLen|HVecOffset     |  For handler vector
     +---+---+---+---+---+---+
-    |               |          Flags (32768|4096|2048|512|256|128|32|2)
+    | HandlerVectorFlags    |
     +---+---+---+---+---+---+== +60
     | PCount| POffset       |  For list of names of properties.
     +---+---+---+---+---+---+
@@ -145,14 +145,62 @@ The contents of the *i*th literal is stored as follows:
 
 #### Handler vector
 
+The handler vector indicates which standard handlers are present in the script,
+and their function numbers.
+
+HandlerVectorFlags is a bitmask which indicates the presence of handlers:
+
+[cols=2]
+|==============================
+|  Nr. | Bit    | Meaning
+|    0 |    0x1 | mouseDown
+|    1 |    0x2 | mouseUp
+|    2 |    0x4 | ??keyDown??
+|    3 |    0x8 | keyUp
+|    4 |   0x10 | ??
+|    5 |   0x20 | prepareFrame
+|    6 |   0x40 | ??
+|    7 |   0x80 | mouseEnter
+|    8 |  0x100 | mouseLeave
+|    9 |  0x200 | mouseWithin
+|    0 |  0x400 | ?
+|   11 |  0x800 | startMovie
+|   12 | 0x1000 | stopMovie
+|   13 | 0x2000 | ??
+|   14 | 0x4000 | ??
+|   15 | 0x8000 | exitFrame
+|==============================
+
+The handler vector itself contains the function numbers corresponding
+to the handlers:
+
+    +== From HVecOffset
+    [ Repeat HVecLen times
+      +---+---+
+      | FunNr |  Function number of handler in script
+      +---+---+
+    ]
+
 #### Functions
 
 A script consists (primarily) of a number of functions.
-Information about the functions of a script is divided into two parts:
-a *function table*, which contains the fixed-size information about a
-function, and a variable-size *function definition* for each function,
-which contains the code itself and other variable-size properties of
-the function.
+The root of information about the functions of a script is
+the *function table*. The function table has an entry for each function of the script, and contains both some fixed-size information about a
+function and pointers to regions which contain the actual function
+code and other variable-size properties of the function.
+
+    +================+       +==============+
+    | Function table |--+--->| Instructions |
+    +================+  |    +==============+
+                        |\   +=================+
+                        | -->| Parameter names |
+                        |    +=================+
+                        |\   +==========================+
+                        | -->| Names of local variables |
+                        |    +==========================+
+                         \   +=========================+
+                          -->| Line number information |
+                             +=========================+
 
 ##### Function table
 
